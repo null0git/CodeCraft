@@ -1,0 +1,97 @@
+Here is a **comprehensive prompt** you can use to give to an AI (like ChatGPT or an advanced AI code generator) to build your **Distributed Raspberry Pi Password Cracking Machine** project:
+
+---
+
+**🧠 AI Prompt:**
+
+> I want to build a **Distributed Password Cracking Platform** using Raspberry Pis. One Raspberry Pi will act as the **Main Server** and the others will be **Clients**. Here are all the features and requirements for the system:
+>
+> ### 🔧 General Setup
+>
+> * The Main Raspberry Pi hosts a **web-based UI** (using Flask or FastAPI + HTML/JS frontend).
+> * It must automatically start the server Python file and open the browser on system boot.
+> * All Raspberry Pis (server + clients) must be configured beforehand. Generate a `conf-readme.md` to explain how to set up and configure both main and client Pis.
+>
+> ### 🌐 Server Functionality
+>
+> * Automatically or manually identify and add clients (scan the local network).
+> * Show each client’s:
+>
+>   * Status (Connected ✅ / Disconnected ❌)
+>   * IP address
+>   * MAC address
+>   * RAM usage
+>   * Disk space
+>   * CPU model and usage
+>   * CPU frequency
+>   * Network latency to server
+>   * Client ID
+>   * OS/Username info
+>   * Work status (Idle, Cracking, Done, Failed)
+> * Add interactive shell per client (via web terminal like `xterm.js`).
+> * Include dark mode and light mode toggle.
+> * User can configure server settings from the web UI (change hostname, port, server info).
+>
+> ### 🔐 User Management
+>
+> * On first run, create a root user with password.
+> * User login with session management.
+> * Add/edit/delete users from settings.
+> * Change password option.
+>
+> ### 🧠 Hash Cracking Features
+>
+> * Upload hashes to crack (supports multiple types like MD5, SHA1, NTLM, bcrypt, etc.).
+> * Automatically identify hash types.
+> * Distribute cracking jobs to clients (divide hash list).
+> * Clients use **John the Ripper** or **Hashcat** to crack passwords.
+> * Display cracking progress in:
+>
+>   * % completed
+>   * Number of attempts
+>   * Estimated time remaining
+>   * Progress bar
+>   * Which client is working on which part
+> * When a password is cracked:
+>
+>   * Notify in the UI
+>   * Display: hash, hash type, cracked password, time taken, client who cracked it
+>   * Stop cracking on all other clients.
+>
+> ### 📺 Client Functionality
+>
+> * Lightweight daemon that connects to server.
+> * Accepts cracking tasks and reports back progress.
+> * Sends hardware info to server on connect and every X seconds (RAM, CPU, etc.).
+>
+> ### 📁 Extra Features
+>
+> * Persistent storage of results and logs.
+> * Option to download cracked hashes as CSV.
+> * Enable SSH or WebShell per client from the UI.
+> * Display system info of the **main Raspberry Pi** in the "Server" tab just like a client.
+>
+> ### 💻 Tech Recommendations
+>
+> * Backend: Python (FastAPI or Flask)
+> * Frontend: HTML + JS (or React/Vue if advanced UI)
+> * Use `psutil`, `platform`, `socket`, `subprocess`, `nmap`, `netifaces`, and `paramiko` libraries.
+> * Store configuration and users in SQLite or JSON.
+> * Use `supervisord` or systemd to autostart on boot.
+> * Use `cron` or `systemd` to keep clients running on boot.
+>
+> Please generate **complete production-ready code** with:
+>
+> 1. `server.py` (Main server logic)
+> 2. `client.py` (Cracking agent)
+> 3. `web-ui/` folder (for HTML/CSS/JS)
+> 4. `config/` folder (for settings)
+> 5. `conf-readme.md` with installation and configuration steps for both server and clients
+> 6. Systemd service file to auto-run server and browser on boot
+> 7. Any shell scripts needed for setup
+>
+> Make the whole project well-commented and modular, secure, and efficient even on limited Raspberry Pi hardware.
+
+---
+
+Let me know if you want me to **generate the full code** for you step-by-step or package it into a GitHub-ready project.
