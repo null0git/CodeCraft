@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - CrackPi{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i data-feather="home"></i> Dashboard</h1>
+        <p class="text-muted">Overview of your distributed password cracking operations</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- Server Stats -->
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Server Status</h5>
+                        <h2 class="mb-0">Online</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i data-feather="server" width="32" height="32"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Connected Clients -->
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Connected Clients</h5>
+                        <h2 class="mb-0" id="connectedClients">{{ connected_clients }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i data-feather="monitor" width="32" height="32"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Running Jobs -->
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Running Jobs</h5>
+                        <h2 class="mb-0" id="runningJobs">{{ running_jobs }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i data-feather="play-circle" width="32" height="32"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Cracked Passwords -->
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Cracked Today</h5>
+                        <h2 class="mb-0" id="crackedToday">{{ cracked_today }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i data-feather="key" width="32" height="32"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recent Jobs -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i data-feather="layers"></i> Recent Jobs</h5>
+                <a href="{{ url_for('jobs.create') }}" class="btn btn-primary btn-sm">
+                    <i data-feather="plus"></i> New Job
+                </a>
+            </div>
+            <div class="card-body">
+                {% if recent_jobs %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Job Name</th>
+                                    <th>Hash Type</th>
+                                    <th>Status</th>
+                                    <th>Progress</th>
+                                    <th>Client</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for job in recent_jobs %}
+                                <tr>
+                                    <td>{{ job.name }}</td>
+                                    <td><span class="badge bg-secondary">{{ job.hash_type.name }}</span></td>
+                                    <td>
+                                        {% if job.status == 'running' %}
+                                            <span class="badge bg-warning">Running</span>
+                                        {% elif job.status == 'completed' %}
+                                            <span class="badge bg-success">Completed</span>
+                                        {% elif job.status == 'failed' %}
+                                            <span class="badge bg-danger">Failed</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ job.status.title() }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar" role="progressbar" 
+                                                 style="width: {{ job.progress_percent }}%"
+                                                 aria-valuenow="{{ job.progress_percent }}" 
+                                                 aria-valuemin="0" aria-valuemax="100">
+                                                {{ "%.1f"|format(job.progress_percent) }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if job.assigned_client %}
+                                            {{ job.assigned_client.hostname or job.assigned_client.client_id }}
+                                        {% else %}
+                                            <span class="text-muted">Unassigned</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('jobs.view', job_id=job.id) }}" class="btn btn-sm btn-outline-primary">
+                                            <i data-feather="eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i data-feather="layers" width="48" height="48" class="text-muted"></i>
+                        <h5 class="mt-2 text-muted">No jobs yet</h5>
+                        <p class="text-muted">Create your first cracking job to get started.</p>
+                        <a href="{{ url_for('jobs.create') }}" class="btn btn-primary">
+                            <i data-feather="plus"></i> Create Job
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- System Overview -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i data-feather="activity"></i> System Overview</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Server CPU Usage</label>
+                    <div class="progress">
+                        <div class="progress-bar" id="serverCpuUsage" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Server RAM Usage</label>
+                    <div class="progress">
+                        <div class="progress-bar bg-info" id="serverRamUsage" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Server Disk Usage</label>
+                    <div class="progress">
+                        <div class="progress-bar bg-warning" id="serverDiskUsage" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>Total Clients</span>
+                    <span class="badge bg-secondary" id="totalClients">{{ total_clients }}</span>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>Working Clients</span>
+                    <span class="badge bg-warning" id="workingClients">{{ working_clients }}</span>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>Idle Clients</span>
+                    <span class="badge bg-success" id="idleClients">{{ idle_clients }}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Cracks -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i data-feather="key"></i> Recent Cracks</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_cracks %}
+                    <div class="list-group list-group-flush">
+                        {% for crack in recent_cracks %}
+                        <div class="list-group-item border-0 px-0">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h6 class="mb-1">{{ crack.cracked_password }}</h6>
+                                    <small class="text-muted">{{ crack.hash_value[:16] }}...</small>
+                                </div>
+                                <small class="text-muted">{{ crack.cracked_at.strftime('%H:%M') }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-3">
+                        <i data-feather="key" width="32" height="32" class="text-muted"></i>
+                        <p class="text-muted mt-2 mb-0">No passwords cracked yet</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

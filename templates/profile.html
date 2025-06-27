@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - CrackPi{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h3><i data-feather="user"></i> User Profile</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username</label>
+                                <input type="text" class="form-control" id="username" value="{{ current_user.username }}" disabled>
+                                <div class="form-text">Username cannot be changed</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email Address</label>
+                                <input type="email" class="form-control" id="email" name="email" value="{{ current_user.email }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="role" class="form-label">Role</label>
+                                <input type="text" class="form-control" id="role" 
+                                       value="{% if current_user.is_admin %}Administrator{% else %}User{% endif %}" disabled>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="created_at" class="form-label">Member Since</label>
+                                <input type="text" class="form-control" id="created_at" 
+                                       value="{{ current_user.created_at.strftime('%Y-%m-%d') if current_user.created_at else 'Unknown' }}" disabled>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h5>Change Password</h5>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="current_password" class="form-label">Current Password</label>
+                                <input type="password" class="form-control" id="current_password" name="current_password">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="new_password" class="form-label">New Password</label>
+                                <input type="password" class="form-control" id="new_password" name="new_password">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="confirm_password" class="form-label">Confirm Password</label>
+                                <input type="password" class="form-control" id="confirm_password" name="confirm_password">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('dashboard.index') }}" class="btn btn-secondary">
+                            <i data-feather="arrow-left"></i> Back to Dashboard
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i data-feather="save"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- User Statistics -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i data-feather="bar-chart-2"></i> Your Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h4 class="text-primary">{{ user_stats.total_jobs if user_stats else 0 }}</h4>
+                        <p class="text-muted">Total Jobs</p>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-success">{{ user_stats.completed_jobs if user_stats else 0 }}</h4>
+                        <p class="text-muted">Completed Jobs</p>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-info">{{ user_stats.total_hashes if user_stats else 0 }}</h4>
+                        <p class="text-muted">Total Hashes</p>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-warning">{{ user_stats.cracked_hashes if user_stats else 0 }}</h4>
+                        <p class="text-muted">Cracked Hashes</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Password validation
+document.getElementById('new_password').addEventListener('input', function() {
+    const password = this.value;
+    const confirmPassword = document.getElementById('confirm_password');
+    
+    if (password.length > 0 && password.length < 6) {
+        this.setCustomValidity('Password must be at least 6 characters long');
+    } else {
+        this.setCustomValidity('');
+    }
+    
+    // Check confirm password match
+    if (confirmPassword.value && password !== confirmPassword.value) {
+        confirmPassword.setCustomValidity('Passwords do not match');
+    } else {
+        confirmPassword.setCustomValidity('');
+    }
+});
+
+document.getElementById('confirm_password').addEventListener('input', function() {
+    const newPassword = document.getElementById('new_password').value;
+    
+    if (this.value && this.value !== newPassword) {
+        this.setCustomValidity('Passwords do not match');
+    } else {
+        this.setCustomValidity('');
+    }
+});
+
+// Load user statistics
+fetch('/api/stats')
+    .then(response => response.json())
+    .then(data => {
+        // Update statistics display if needed
+        console.log('User stats:', data);
+    })
+    .catch(error => console.error('Error loading stats:', error));
+
+// Initialize Feather icons
+feather.replace();
+</script>
+{% endblock %}

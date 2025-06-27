@@ -1,0 +1,43 @@
+[Unit]
+Description=CrackPi Distributed Password Cracking Server
+After=network.target network-online.target
+Wants=network-online.target
+RequiresMountsFor=/var/lib/crackpi
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/crackpi
+Environment=PATH=/home/pi/crackpi/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONPATH=/home/pi/crackpi
+Environment=SESSION_SECRET=your-secret-key-here
+Environment=DATABASE_URL=sqlite:///var/lib/crackpi/crackpi.db
+ExecStart=/home/pi/crackpi/venv/bin/python3 /home/pi/crackpi/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=crackpi-server
+
+# Security settings
+NoNewPrivileges=true
+ProtectHome=false
+ProtectSystem=strict
+ReadWritePaths=/var/lib/crackpi /var/log/crackpi /home/pi/crackpi/uploads /tmp
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=1G
+CPUQuota=80%
+
+# Restart conditions
+StartLimitInterval=300
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

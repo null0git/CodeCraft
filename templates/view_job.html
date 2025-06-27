@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+
+{% block title %}Job: {{ job.name }} - CrackPi{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h1><i data-feather="layers"></i> {{ job.name }}</h1>
+                <p class="text-muted">
+                    Created {{ job.created_at.strftime('%Y-%m-%d %H:%M') }} by {{ job.user.username }}
+                </p>
+            </div>
+            <div class="btn-group">
+                <a href="{{ url_for('jobs.index') }}" class="btn btn-secondary">
+                    <i data-feather="arrow-left"></i> Back
+                </a>
+                {% if job.status in ['pending', 'running'] %}
+                <button class="btn btn-warning" onclick="cancelJob({{ job.id }})">
+                    <i data-feather="stop-circle"></i> Cancel
+                </button>
+                {% endif %}
+                {% if job.status == 'completed' and job.cracked_hashes > 0 %}
+                <a href="{{ url_for('jobs.download_results', job_id=job.id) }}" class="btn btn-success">
+                    <i data-feather="download"></i> Download Results
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Job Status -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Job Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Status</label>
+                            <div>
+                                {% if job.status == 'pending' %}
+                                    <span class="badge bg-secondary fs-6">
+                                        <i data-feather="clock" width="16" height="16"></i>
+                                        Pending
+                                    </span>
+                                {% elif job.status == 'running' %}
+                                    <span class="badge bg-warning fs-6">
+                                        <i data-feather="play-circle" width="16" height="16"></i>
+                                        Running
+                                    </span>
+                                {% elif job.status == 'completed' %}
+                                    <span class="badge bg-success fs-6">
+                                        <i data-feather="check-circle" width="16" height="16"></i>
+                                        Completed
+                                    </span>
+                                {% elif job.status == 'failed' %}
+                                    <span class="badge bg-danger fs-6">
+                                        <i data-feather="x-circle" width="16" height="16"></i>
+                                        Failed
+                                    </span>
+                                {% elif job.status == 'cancelled' %}
+                                    <span class="badge bg-secondary fs-6">
+                                        <i data-feather="x" width="16" height="16"></i>
+                                        Cancelled
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Assigned Client</label>
+                            <div>
+                                {% if job.assigned_client %}
+                                    <strong>{{ job.assigned_client.hostname or 'Unknown' }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ job.assigned_client.client_id }}</small>
+                                {% else %}
+                                    <span class="text-muted">Unassigned</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Progress</label>
+                    <div class="progress mb-2" style="height: 25px;">
+                        <div class="progress-bar 
+                            {% if job.status == 'completed' %}bg-success
+                            {% elif job.status == 'failed' %}bg-danger
+                            {% elif job.status == 'running' %}bg-warning
+                            {% else %}bg-secondary{% endif %}"
+                            role="progressbar" 
+                            style="width: {{ job.progress_percent }}%"
+                            id="jobProgress">
+                            {{ "%.1f"|format(job.progress_percent) }}%
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between text-muted">
+                        <span>{{ job.cracked_hashes }} / {{ job.total_hashes }} hashes cracked</span>
+                        {% if job.estimated_time and job.status == 'running' %}
+                        <span id="estimatedTime">
+                            ETA: {{ (job.estimated_time // 60) }}m {{ (job.estimated_time % 60) }}s
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Hash Type</label>
+                            <div>
+                                <span class="badge bg-info">{{ job.hash_type.name.upper() }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Attack Mode</label>
+                            <div>{{ job.attack_mode.title() }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Priority</label>
+                            <div>
+                                {% if job.priority <= 2 %}
+                                    <span class="badge bg-danger">High ({{ job.priority }})</span>
+                                {% elif job.priority <= 4 %}
+                                    <span class="badge bg-warning">Normal ({{ job.priority }})</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Low ({{ job.priority }})</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if job.started_at %}
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Started At</label>
+                            <div>{{ job.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                        </div>
+                    </div>
+                    {% if job.completed_at %}
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Completed At</label>
+                            <div>{{ job.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Duration</label>
+                            <div>
+                                {% if job.actual_time %}
+                                    {{ (job.actual_time // 60) }}m {{ (job.actual_time % 60) }}s
+                                {% else %}
+                                    {{ ((job.completed_at - job.started_at).total_seconds() // 60) | int }}m {{ ((job.completed_at - job.started_at).total_seconds() % 60) | int }}s
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Cracked Passwords -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Cracked Passwords</h5>
+                <span class="badge bg-success">{{ cracked_hashes|length }} found</span>
+            </div>
+            <div class="card-body">
+                {% if cracked_hashes %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Hash</th>
+                                    <th>Password</th>
+                                    <th>Cracked At</th>
+                                    <th>Client</th>
+                                </tr>
+                            </thead>
+                            <tbody id="crackedHashesTable">
+                                {% for hash in cracked_hashes %}
+                                <tr>
+                                    <td>{{ hash.username or '-' }}</td>
+                                    <td>
+                                        <code class="text-muted">{{ hash.hash_value[:20] }}...</code>
+                                    </td>
+                                    <td>
+                                        <strong class="text-success">{{ hash.cracked_password }}</strong>
+                                    </td>
+                                    <td>{{ hash.cracked_at.strftime('%H:%M:%S') if hash.cracked_at else '-' }}</td>
+                                    <td>
+                                        {% if hash.cracked_by_client %}
+                                            {{ hash.cracked_by_client.hostname or hash.cracked_by_client.client_id }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i data-feather="key" width="48" height="48" class="text-muted"></i>
+                        <h6 class="mt-2 text-muted">No passwords cracked yet</h6>
+                        {% if job.status == 'running' %}
+                        <p class="text-muted">Cracking in progress...</p>
+                        {% elif job.status == 'pending' %}
+                        <p class="text-muted">Job is waiting to be assigned to a client</p>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Details -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Configuration</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Wordlist</label>
+                    <div>
+                        {% if job.wordlist_path %}
+                            <code>{{ job.wordlist_path }}</code>
+                        {% else %}
+                            <span class="text-muted">Default</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if job.rules_path %}
+                <div class="mb-3">
+                    <label class="form-label">Rules</label>
+                    <div><code>{{ job.rules_path }}</code></div>
+                </div>
+                {% endif %}
+
+                {% if job.mask %}
+                <div class="mb-3">
+                    <label class="form-label">Mask</label>
+                    <div><code>{{ job.mask }}</code></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Job Logs -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Logs</h5>
+            </div>
+            <div class="card-body">
+                {% if logs %}
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        {% for log in logs %}
+                        <div class="mb-2 p-2 rounded 
+                            {% if log.level == 'error' %}bg-danger bg-opacity-10
+                            {% elif log.level == 'warning' %}bg-warning bg-opacity-10
+                            {% else %}bg-light{% endif %}">
+                            <div class="d-flex justify-content-between">
+                                <span class="badge 
+                                    {% if log.level == 'error' %}bg-danger
+                                    {% elif log.level == 'warning' %}bg-warning
+                                    {% else %}bg-info{% endif %}">
+                                    {{ log.level.upper() }}
+                                </span>
+                                <small class="text-muted">{{ log.timestamp.strftime('%H:%M:%S') }}</small>
+                            </div>
+                            <div class="mt-1">{{ log.message }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-3">
+                        <i data-feather="file-text" width="32" height="32" class="text-muted"></i>
+                        <p class="text-muted mt-2">No logs available</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Real-time updates for job progress
+const jobId = {{ job.id }};
+
+// Cancel job function
+function cancelJob(jobId) {
+    if (confirm('Are you sure you want to cancel this job?')) {
+        fetch(`/jobs/cancel/${jobId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error cancelling job: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error cancelling job: ' + error);
+        });
+    }
+}
+
+// WebSocket event handlers for real-time updates
+socket.on('job_progress_update', function(data) {
+    if (data.job_id === jobId) {
+        // Update progress bar
+        const progressBar = document.getElementById('jobProgress');
+        progressBar.style.width = data.progress + '%';
+        progressBar.textContent = data.progress.toFixed(1) + '%';
+        
+        // Update estimated time
+        const estimatedTimeElement = document.getElementById('estimatedTime');
+        if (estimatedTimeElement && data.estimated_time) {
+            const minutes = Math.floor(data.estimated_time / 60);
+            const seconds = data.estimated_time % 60;
+            estimatedTimeElement.textContent = `ETA: ${minutes}m ${seconds}s`;
+        }
+    }
+});
+
+socket.on('password_cracked', function(data) {
+    if (data.job_id === jobId) {
+        // Add new cracked password to the table
+        const table = document.getElementById('crackedHashesTable');
+        if (table) {
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td>-</td>
+                <td><code class="text-muted">${data.hash_value.substring(0, 20)}...</code></td>
+                <td><strong class="text-success">${data.password}</strong></td>
+                <td>${new Date(data.cracked_at).toLocaleTimeString()}</td>
+                <td>${data.client_id}</td>
+            `;
+            table.insertBefore(newRow, table.firstChild);
+        } else {
+            // Reload page if table doesn't exist (first crack)
+            location.reload();
+        }
+    }
+});
+
+socket.on('job_failed', function(data) {
+    if (data.job_id === jobId) {
+        location.reload();
+    }
+});
+
+// Refresh job details every 30 seconds
+setInterval(() => {
+    if ({{ 1 if job.status == 'running' else 0 }}) {
+        fetch(`/api/job/${jobId}/progress`)
+            .then(response => response.json())
+            .then(data => {
+                // Update progress
+                const progressBar = document.getElementById('jobProgress');
+                if (progressBar && data.job) {
+                    progressBar.style.width = data.job.progress_percent + '%';
+                    progressBar.textContent = data.job.progress_percent.toFixed(1) + '%';
+                }
+            })
+            .catch(error => console.error('Error fetching job progress:', error));
+    }
+}, 30000);
+
+// Initialize Feather icons
+feather.replace();
+</script>
+{% endblock %}

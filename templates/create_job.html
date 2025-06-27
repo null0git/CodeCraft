@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Create Job - CrackPi{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h1><i data-feather="plus"></i> Create New Job</h1>
+                <p class="text-muted">Set up a new password cracking job</p>
+            </div>
+            <a href="{{ url_for('jobs.index') }}" class="btn btn-secondary">
+                <i data-feather="arrow-left"></i> Back to Jobs
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Job Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="job_name" class="form-label">Job Name</label>
+                                <input type="text" class="form-control" id="job_name" name="job_name" required>
+                                <div class="form-text">A descriptive name for this cracking job</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="priority" class="form-label">Priority</label>
+                                <select class="form-select" id="priority" name="priority">
+                                    <option value="1">Highest (1)</option>
+                                    <option value="2">High (2)</option>
+                                    <option value="3">Above Normal (3)</option>
+                                    <option value="4">Normal (4)</option>
+                                    <option value="5" selected>Below Normal (5)</option>
+                                    <option value="6">Low (6)</option>
+                                    <option value="7">Lowest (7)</option>
+                                </select>
+                                <div class="form-text">Higher priority jobs are assigned first</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="hash_file" class="form-label">Hash File</label>
+                        <input type="file" class="form-control" id="hash_file" name="hash_file" accept=".txt,.hash,.csv" required>
+                        <div class="form-text">Upload a file containing hashes to crack (.txt, .hash, .csv)</div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="hash_type" class="form-label">Hash Type</label>
+                                <select class="form-select" id="hash_type" name="hash_type" required>
+                                    <option value="">Auto-detect</option>
+                                    {% for hash_type in hash_types %}
+                                    <option value="{{ hash_type }}">{{ hash_type.upper() }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">Select the hash type or let the system auto-detect</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="attack_mode" class="form-label">Attack Mode</label>
+                                <select class="form-select" id="attack_mode" name="attack_mode">
+                                    <option value="dictionary" selected>Dictionary Attack</option>
+                                    <option value="bruteforce">Brute Force</option>
+                                    <option value="hybrid">Hybrid (Dictionary + Brute Force)</option>
+                                </select>
+                                <div class="form-text">Choose the attack strategy</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="dictionaryOptions">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="wordlist_path" class="form-label">Wordlist</label>
+                                    <select class="form-select" id="wordlist_path" name="wordlist_path">
+                                        <option value="">Default Wordlist</option>
+                                        {% for wordlist in wordlists %}
+                                        <option value="{{ wordlist }}">{{ wordlist.split('/')[-1] }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">Choose a wordlist for dictionary attacks</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="rules_path" class="form-label">Rules File (Optional)</label>
+                                    <select class="form-select" id="rules_path" name="rules_path">
+                                        <option value="">No Rules</option>
+                                        {% for rule in rules %}
+                                        <option value="{{ rule }}">{{ rule.split('/')[-1] }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">Apply transformation rules to wordlist entries</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="bruteforceOptions" style="display: none;">
+                        <div class="mb-3">
+                            <label for="mask" class="form-label">Brute Force Mask</label>
+                            <input type="text" class="form-control" id="mask" name="mask" placeholder="?a?a?a?a?a?a?a?a">
+                            <div class="form-text">
+                                Use masks like ?a (all chars), ?d (digits), ?l (lowercase), ?u (uppercase), ?s (symbols)
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary" onclick="previewHashes()">
+                            <i data-feather="eye"></i> Preview Hashes
+                        </button>
+                        <div>
+                            <button type="button" class="btn btn-secondary" onclick="history.back()">
+                                Cancel
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i data-feather="play"></i> Create Job
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Job Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6>Supported Hash Types</h6>
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for hash_type in hash_types[:10] %}
+                        <span class="badge bg-secondary">{{ hash_type.upper() }}</span>
+                        {% endfor %}
+                        {% if hash_types|length > 10 %}
+                        <span class="badge bg-light text-dark">+{{ hash_types|length - 10 }} more</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <h6>File Format Examples</h6>
+                    <div class="bg-dark p-2 rounded">
+                        <code class="text-light">
+                            # Plain hashes<br>
+                            5d41402abc4b2a76b9719d911017c592<br>
+                            098f6bcd4621d373cade4e832627b4f6<br><br>
+                            # With usernames<br>
+                            admin:5d41402abc4b2a76b9719d911017c592<br>
+                            user:098f6bcd4621d373cade4e832627b4f6
+                        </code>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <h6>Tips</h6>
+                    <ul class="list-unstyled">
+                        <li><i data-feather="check" class="text-success"></i> Use dictionary attack for common passwords</li>
+                        <li><i data-feather="check" class="text-success"></i> Brute force is effective for short passwords</li>
+                        <li><i data-feather="check" class="text-success"></i> Rules can significantly improve success rate</li>
+                        <li><i data-feather="check" class="text-success"></i> Higher priority jobs start first</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hash Preview Modal -->
+<div class="modal fade" id="hashPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Hash Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="hashPreviewContent">
+                    <!-- Preview content will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Show/hide options based on attack mode
+document.getElementById('attack_mode').addEventListener('change', function() {
+    const dictionaryOptions = document.getElementById('dictionaryOptions');
+    const bruteforceOptions = document.getElementById('bruteforceOptions');
+    
+    if (this.value === 'bruteforce') {
+        dictionaryOptions.style.display = 'none';
+        bruteforceOptions.style.display = 'block';
+    } else {
+        dictionaryOptions.style.display = 'block';
+        bruteforceOptions.style.display = this.value === 'hybrid' ? 'block' : 'none';
+    }
+});
+
+// Auto-detect hash type from uploaded file
+document.getElementById('hash_file').addEventListener('change', function() {
+    const file = this.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const content = e.target.result;
+            const lines = content.split('\n').slice(0, 10); // First 10 lines
+            
+            // Simple hash type detection
+            for (let line of lines) {
+                line = line.trim();
+                if (!line || line.startsWith('#')) continue;
+                
+                const hash = line.includes(':') ? line.split(':')[1] : line;
+                const hashType = detectHashType(hash);
+                
+                if (hashType) {
+                    document.getElementById('hash_type').value = hashType;
+                    break;
+                }
+            }
+        };
+        reader.readAsText(file);
+    }
+});
+
+// Simple hash type detection
+function detectHashType(hash) {
+    if (/^[a-fA-F0-9]{32}$/.test(hash)) return 'md5';
+    if (/^[a-fA-F0-9]{40}$/.test(hash)) return 'sha1';
+    if (/^[a-fA-F0-9]{64}$/.test(hash)) return 'sha256';
+    if (/^[a-fA-F0-9]{128}$/.test(hash)) return 'sha512';
+    if (hash.startsWith('$2a$') || hash.startsWith('$2b$') || hash.startsWith('$2y$')) return 'bcrypt';
+    return null;
+}
+
+// Preview hashes function
+function previewHashes() {
+    const fileInput = document.getElementById('hash_file');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        alert('Please select a hash file first.');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const content = e.target.result;
+        const lines = content.split('\n').slice(0, 20); // First 20 lines
+        
+        let previewHtml = '<h6>File Preview (first 20 lines):</h6>';
+        previewHtml += '<div class="bg-dark p-3 rounded"><code class="text-light">';
+        
+        let hashCount = 0;
+        const hashTypes = {};
+        
+        for (let line of lines) {
+            line = line.trim();
+            if (!line || line.startsWith('#')) {
+                previewHtml += line + '<br>';
+                continue;
+            }
+            
+            const hash = line.includes(':') ? line.split(':')[1] : line;
+            const hashType = detectHashType(hash);
+            
+            if (hashType) {
+                hashTypes[hashType] = (hashTypes[hashType] || 0) + 1;
+                hashCount++;
+            }
+            
+            previewHtml += line + '<br>';
+        }
+        
+        previewHtml += '</code></div>';
+        
+        if (hashCount > 0) {
+            previewHtml += '<div class="mt-3">';
+            previewHtml += '<h6>Detected Hash Types:</h6>';
+            previewHtml += '<div class="d-flex flex-wrap gap-1">';
+            for (let [type, count] of Object.entries(hashTypes)) {
+                previewHtml += `<span class="badge bg-primary">${type.toUpperCase()}: ${count}</span>`;
+            }
+            previewHtml += '</div>';
+            previewHtml += `<p class="mt-2 text-muted">Total valid hashes found: ${hashCount}</p>`;
+            previewHtml += '</div>';
+        }
+        
+        document.getElementById('hashPreviewContent').innerHTML = previewHtml;
+        
+        const modal = new bootstrap.Modal(document.getElementById('hashPreviewModal'));
+        modal.show();
+    };
+    
+    reader.readAsText(file);
+}
+
+// Initialize Feather icons
+feather.replace();
+</script>
+{% endblock %}

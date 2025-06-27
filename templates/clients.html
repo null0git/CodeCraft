@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}Clients - CrackPi{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h1><i data-feather="monitor"></i> Clients</h1>
+                <p class="text-muted">Manage your distributed cracking clients</p>
+            </div>
+            <div>
+                <button class="btn btn-primary" id="scanNetwork">
+                    <i data-feather="search"></i> Scan Network
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success">Connected</h5>
+                <h2 class="mb-0" id="connectedCount">{{ connected_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-warning">Working</h5>
+                <h2 class="mb-0" id="workingCount">{{ working_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-secondary">Idle</h5>
+                <h2 class="mb-0" id="idleCount">{{ idle_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-danger">Disconnected</h5>
+                <h2 class="mb-0" id="disconnectedCount">{{ disconnected_count }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Client List</h5>
+            </div>
+            <div class="card-body">
+                {% if clients %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Hostname</th>
+                                    <th>IP Address</th>
+                                    <th>System Info</th>
+                                    <th>Resources</th>
+                                    <th>Performance</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="clientsTableBody">
+                                {% for client in clients %}
+                                <tr data-client-id="{{ client.client_id }}">
+                                    <td>
+                                        {% if client.status == 'connected' %}
+                                            <span class="badge bg-success">
+                                                <i data-feather="check-circle" width="12" height="12"></i>
+                                                Connected
+                                            </span>
+                                        {% elif client.status == 'working' %}
+                                            <span class="badge bg-warning">
+                                                <i data-feather="cpu" width="12" height="12"></i>
+                                                Working
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-danger">
+                                                <i data-feather="x-circle" width="12" height="12"></i>
+                                                Disconnected
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong>{{ client.hostname or 'Unknown' }}</strong>
+                                        <br>
+                                        <small class="text-muted">{{ client.client_id }}</small>
+                                    </td>
+                                    <td>
+                                        {{ client.ip_address }}
+                                        <br>
+                                        <small class="text-muted">{{ client.mac_address }}</small>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <strong>{{ client.cpu_model or 'Unknown CPU' }}</strong>
+                                            <br>
+                                            <small class="text-muted">
+                                                {{ client.cpu_cores }} cores @ {{ "%.1f"|format(client.cpu_frequency or 0) }} MHz
+                                            </small>
+                                            <br>
+                                            <small class="text-muted">{{ client.os_info }}</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="mb-1">
+                                            <small>CPU: {{ "%.1f"|format(client.cpu_usage or 0) }}%</small>
+                                            <div class="progress progress-sm">
+                                                <div class="progress-bar" style="width: {{ client.cpu_usage or 0 }}%"></div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-1">
+                                            <small>RAM: {{ "%.1f"|format(client.ram_usage or 0) }}%</small>
+                                            <div class="progress progress-sm">
+                                                <div class="progress-bar bg-info" style="width: {{ client.ram_usage or 0 }}%"></div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <small>Disk: {{ "%.1f"|format(client.disk_usage or 0) }}%</small>
+                                            <div class="progress progress-sm">
+                                                <div class="progress-bar bg-warning" style="width: {{ client.disk_usage or 0 }}%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="text-center">
+                                            <div class="mb-1">
+                                                <small>Latency</small>
+                                                <br>
+                                                <strong>{{ "%.0f"|format(client.network_latency or 0) }}ms</strong>
+                                            </div>
+                                            <div>
+                                                <small>Last Seen</small>
+                                                <br>
+                                                <small class="text-muted">
+                                                    {{ client.last_seen.strftime('%H:%M:%S') if client.last_seen else 'Never' }}
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group-vertical btn-group-sm">
+                                            <button class="btn btn-outline-primary" onclick="openTerminal('{{ client.client_id }}')">
+                                                <i data-feather="terminal"></i> Terminal
+                                            </button>
+                                            <button class="btn btn-outline-info" onclick="viewClientDetails('{{ client.client_id }}')">
+                                                <i data-feather="info"></i> Details
+                                            </button>
+                                            {% if client.status == 'working' %}
+                                            <button class="btn btn-outline-warning" onclick="stopClient('{{ client.client_id }}')">
+                                                <i data-feather="stop-circle"></i> Stop
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i data-feather="monitor" width="64" height="64" class="text-muted"></i>
+                        <h5 class="mt-3 text-muted">No clients connected</h5>
+                        <p class="text-muted">Start some CrackPi clients to see them here.</p>
+                        <button class="btn btn-primary" id="scanNetworkEmpty">
+                            <i data-feather="search"></i> Scan Network for Clients
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Client Details Modal -->
+<div class="modal fade" id="clientDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Client Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="clientDetailsBody">
+                <!-- Client details will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Terminal Modal -->
+<div class="modal fade" id="terminalModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Client Terminal</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="terminal" style="height: 400px; background: #000; padding: 10px;">
+                    <div class="text-success">
+                        <p>Terminal access is not yet implemented.</p>
+                        <p>This would typically use xterm.js and a WebSocket connection to provide shell access.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/clients.js') }}"></script>
+{% endblock %}
