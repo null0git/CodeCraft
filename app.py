@@ -42,6 +42,8 @@ def create_app():
     from routes.jobs import jobs_bp
     from routes.settings import settings_bp
     from routes.api import api_bp
+    from routes.hash_input import hash_input_bp
+    from routes.progress import progress_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -49,6 +51,8 @@ def create_app():
     app.register_blueprint(jobs_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(hash_input_bp)
+    app.register_blueprint(progress_bp)
     
     # Create tables
     with app.app_context():

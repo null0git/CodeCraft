@@ -1,0 +1,597 @@
+{% extends "base.html" %}
+
+{% block title %}Progress Monitor - CrackPi{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2><i class="feather-icon" data-feather="activity"></i> Real-time Progress Monitor</h2>
+                <div class="d-flex gap-2">
+                    <span class="badge bg-success" id="connectionStatus">Connected</span>
+                    <button class="btn btn-outline-secondary btn-sm" id="refreshBtn">
+                        <i class="feather-icon" data-feather="refresh-cw"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Overview Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0" id="activeJobsCount">{{ active_jobs|length }}</h4>
+                            <p class="mb-0">Active Jobs</p>
+                        </div>
+                        <i class="feather-icon" data-feather="play" style="width: 32px; height: 32px;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0" id="connectedClientsCount">{{ clients|selectattr("status", "equalto", "connected")|list|length }}</h4>
+                            <p class="mb-0">Connected Clients</p>
+                        </div>
+                        <i class="feather-icon" data-feather="users" style="width: 32px; height: 32px;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0" id="workingClientsCount">{{ clients|selectattr("status", "equalto", "working")|list|length }}</h4>
+                            <p class="mb-0">Working Clients</p>
+                        </div>
+                        <i class="feather-icon" data-feather="cpu" style="width: 32px; height: 32px;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0" id="totalCracksToday">0</h4>
+                            <p class="mb-0">Cracks Today</p>
+                        </div>
+                        <i class="feather-icon" data-feather="key" style="width: 32px; height: 32px;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Jobs Progress -->
+    {% if active_jobs %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="feather-icon" data-feather="target"></i> Active Jobs Progress</h5>
+                </div>
+                <div class="card-body">
+                    <div id="activeJobsContainer">
+                        {% for job in active_jobs %}
+                        <div class="job-progress-card mb-3" data-job-id="{{ job.id }}">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0">
+                                    <a href="{{ url_for('progress.job_detail', job_id=job.id) }}" class="text-decoration-none">
+                                        {{ job.name }}
+                                    </a>
+                                </h6>
+                                <span class="badge bg-{{ 'success' if job.status == 'running' else 'warning' }}">
+                                    {{ job.status.title() }}
+                                </span>
+                            </div>
+                            <div class="progress mb-2" style="height: 25px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" 
+                                     style="width: {{ job.progress_percent or 0 }}%"
+                                     id="progress-{{ job.id }}">
+                                    <span class="progress-text">{{ "%.1f"|format(job.progress_percent or 0) }}%</span>
+                                </div>
+                            </div>
+                            <div class="row text-muted small">
+                                <div class="col-md-3">
+                                    <i class="feather-icon" data-feather="hash"></i>
+                                    <span id="cracked-{{ job.id }}">{{ job.cracked_hashes or 0 }}</span>/{{ job.total_hashes or 0 }} cracked
+                                </div>
+                                <div class="col-md-3">
+                                    <i class="feather-icon" data-feather="clock"></i>
+                                    ETA: <span id="eta-{{ job.id }}">Calculating...</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <i class="feather-icon" data-feather="zap"></i>
+                                    Rate: <span id="rate-{{ job.id }}">0</span>/hr
+                                </div>
+                                <div class="col-md-3">
+                                    <i class="feather-icon" data-feather="users"></i>
+                                    <span id="workers-{{ job.id }}">0</span> workers
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Clients Status Grid -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="feather-icon" data-feather="monitor"></i> Client Status Monitor</h5>
+                </div>
+                <div class="card-body">
+                    <div id="clientsContainer" class="row">
+                        {% for client in clients %}
+                        <div class="col-lg-6 col-xl-4 mb-3">
+                            <div class="card client-card" data-client-id="{{ client.client_id }}">
+                                <div class="card-body">
+                                    <!-- Client Header -->
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="mb-0">{{ client.hostname or client.client_id }}</h6>
+                                        <span class="status-indicator status-{{ client.status }}" 
+                                              id="status-{{ client.client_id }}">
+                                            {{ client.status.title() }}
+                                        </span>
+                                    </div>
+
+                                    <!-- System Info -->
+                                    <div class="mb-3">
+                                        <div class="small text-muted mb-1">
+                                            <i class="feather-icon" data-feather="globe"></i>
+                                            {{ client.ip_address or 'Unknown' }} | {{ client.mac_address or 'Unknown' }}
+                                        </div>
+                                        <div class="small text-muted">
+                                            <i class="feather-icon" data-feather="cpu"></i>
+                                            {{ client.cpu_model or 'Unknown CPU' }} ({{ client.cpu_cores or 'N/A' }} cores)
+                                        </div>
+                                    </div>
+
+                                    <!-- Resource Usage -->
+                                    <div class="mb-3">
+                                        <!-- CPU Usage -->
+                                        <div class="mb-2">
+                                            <div class="d-flex justify-content-between small">
+                                                <span>CPU</span>
+                                                <span id="cpu-{{ client.client_id }}">{{ "%.1f"|format(client.cpu_usage or 0) }}%</span>
+                                            </div>
+                                            <div class="progress" style="height: 8px;">
+                                                <div class="progress-bar bg-info" 
+                                                     style="width: {{ client.cpu_usage or 0 }}%"
+                                                     id="cpu-bar-{{ client.client_id }}"></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- RAM Usage -->
+                                        <div class="mb-2">
+                                            <div class="d-flex justify-content-between small">
+                                                <span>RAM</span>
+                                                <span id="ram-{{ client.client_id }}">{{ "%.1f"|format(client.ram_usage or 0) }}%</span>
+                                            </div>
+                                            <div class="progress" style="height: 8px;">
+                                                <div class="progress-bar bg-warning" 
+                                                     style="width: {{ client.ram_usage or 0 }}%"
+                                                     id="ram-bar-{{ client.client_id }}"></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Network Latency -->
+                                        <div class="small text-muted">
+                                            <i class="feather-icon" data-feather="wifi"></i>
+                                            Latency: <span id="latency-{{ client.client_id }}">{{ client.network_latency or 0 }}ms</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Current Work -->
+                                    <div class="current-work mb-3" id="work-{{ client.client_id }}">
+                                        {% if client.status == 'working' %}
+                                        <div class="small">
+                                            <i class="feather-icon" data-feather="activity"></i>
+                                            <span class="text-success">Processing job...</span>
+                                        </div>
+                                        {% else %}
+                                        <div class="small text-muted">
+                                            <i class="feather-icon" data-feather="pause"></i>
+                                            Idle
+                                        </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Last Seen -->
+                                    <div class="small text-muted">
+                                        <i class="feather-icon" data-feather="clock"></i>
+                                        Last seen: <span id="lastseen-{{ client.client_id }}">
+                                            {{ client.last_seen.strftime('%H:%M:%S') if client.last_seen else 'Never' }}
+                                        </span>
+                                    </div>
+
+                                    <!-- Action Buttons -->
+                                    <div class="mt-3">
+                                        <div class="btn-group w-100" role="group">
+                                            <button class="btn btn-outline-primary btn-sm" 
+                                                    onclick="openTerminal('{{ client.client_id }}')">
+                                                <i class="feather-icon" data-feather="terminal"></i>
+                                            </button>
+                                            <button class="btn btn-outline-info btn-sm" 
+                                                    onclick="viewDetails('{{ client.client_id }}')">
+                                                <i class="feather-icon" data-feather="info"></i>
+                                            </button>
+                                            {% if client.status == 'working' %}
+                                            <button class="btn btn-outline-warning btn-sm" 
+                                                    onclick="stopClient('{{ client.client_id }}')">
+                                                <i class="feather-icon" data-feather="stop-circle"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Real-time Update Script -->
+<script>
+class ProgressMonitor {
+    constructor() {
+        this.updateInterval = 2000; // 2 seconds
+        this.intervalId = null;
+        this.connectionStatus = document.getElementById('connectionStatus');
+        this.isConnected = true;
+        
+        this.initializeEventListeners();
+        this.startUpdates();
+    }
+
+    initializeEventListeners() {
+        // Refresh button
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            this.updateAll();
+        });
+
+        // Auto-refresh when page becomes visible
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                this.updateAll();
+            }
+        });
+    }
+
+    startUpdates() {
+        this.updateAll();
+        this.intervalId = setInterval(() => {
+            this.updateAll();
+        }, this.updateInterval);
+    }
+
+    stopUpdates() {
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+    }
+
+    async updateAll() {
+        try {
+            await Promise.all([
+                this.updateSystemStats(),
+                this.updateClientStatus(),
+                this.updateJobProgress()
+            ]);
+            this.setConnectionStatus(true);
+        } catch (error) {
+            console.error('Error updating progress:', error);
+            this.setConnectionStatus(false);
+        }
+    }
+
+    async updateSystemStats() {
+        try {
+            const response = await fetch('/progress/api/system-stats');
+            const data = await response.json();
+            
+            // Update overview cards
+            document.getElementById('activeJobsCount').textContent = data.jobs.active;
+            document.getElementById('connectedClientsCount').textContent = data.clients?.summary?.connected_clients || 0;
+            document.getElementById('workingClientsCount').textContent = data.clients?.summary?.working_clients || 0;
+            document.getElementById('totalCracksToday').textContent = data.hashes.recent_cracks_24h;
+            
+        } catch (error) {
+            console.error('Error updating system stats:', error);
+        }
+    }
+
+    async updateClientStatus() {
+        try {
+            const response = await fetch('/progress/api/clients-status');
+            const data = await response.json();
+            
+            data.clients.forEach(client => {
+                this.updateClientCard(client);
+            });
+            
+        } catch (error) {
+            console.error('Error updating client status:', error);
+        }
+    }
+
+    updateClientCard(client) {
+        const clientId = client.client_id;
+        
+        // Update status indicator
+        const statusElement = document.getElementById(`status-${clientId}`);
+        if (statusElement) {
+            statusElement.textContent = client.status.charAt(0).toUpperCase() + client.status.slice(1);
+            statusElement.className = `status-indicator status-${client.status}`;
+        }
+
+        // Update CPU usage
+        const cpuElement = document.getElementById(`cpu-${clientId}`);
+        const cpuBarElement = document.getElementById(`cpu-bar-${clientId}`);
+        if (cpuElement && cpuBarElement) {
+            const cpuUsage = client.cpu_usage || 0;
+            cpuElement.textContent = `${cpuUsage.toFixed(1)}%`;
+            cpuBarElement.style.width = `${cpuUsage}%`;
+        }
+
+        // Update RAM usage
+        const ramElement = document.getElementById(`ram-${clientId}`);
+        const ramBarElement = document.getElementById(`ram-bar-${clientId}`);
+        if (ramElement && ramBarElement) {
+            const ramUsage = client.ram_usage || 0;
+            ramElement.textContent = `${ramUsage.toFixed(1)}%`;
+            ramBarElement.style.width = `${ramUsage}%`;
+        }
+
+        // Update network latency
+        const latencyElement = document.getElementById(`latency-${clientId}`);
+        if (latencyElement) {
+            latencyElement.textContent = `${client.network_latency || 0}ms`;
+        }
+
+        // Update work status
+        const workElement = document.getElementById(`work-${clientId}`);
+        if (workElement) {
+            if (client.current_job) {
+                workElement.innerHTML = `
+                    <div class="small">
+                        <i class="feather-icon" data-feather="activity"></i>
+                        <span class="text-success">Job: ${client.current_job.name}</span>
+                    </div>
+                `;
+            } else {
+                workElement.innerHTML = `
+                    <div class="small text-muted">
+                        <i class="feather-icon" data-feather="pause"></i>
+                        Idle
+                    </div>
+                `;
+            }
+            feather.replace(); // Re-render icons
+        }
+
+        // Update last seen
+        const lastSeenElement = document.getElementById(`lastseen-${clientId}`);
+        if (lastSeenElement && client.last_seen) {
+            const lastSeen = new Date(client.last_seen);
+            lastSeenElement.textContent = lastSeen.toLocaleTimeString();
+        }
+    }
+
+    async updateJobProgress() {
+        const jobCards = document.querySelectorAll('.job-progress-card');
+        
+        for (const card of jobCards) {
+            const jobId = card.dataset.jobId;
+            try {
+                const response = await fetch(`/progress/api/job-status/${jobId}`);
+                const data = await response.json();
+                
+                this.updateJobCard(jobId, data);
+            } catch (error) {
+                console.error(`Error updating job ${jobId}:`, error);
+            }
+        }
+    }
+
+    updateJobCard(jobId, data) {
+        // Update progress bar
+        const progressBar = document.getElementById(`progress-${jobId}`);
+        if (progressBar) {
+            const progress = data.progress_percent || 0;
+            progressBar.style.width = `${progress}%`;
+            progressBar.querySelector('.progress-text').textContent = `${progress.toFixed(1)}%`;
+        }
+
+        // Update cracked count
+        const crackedElement = document.getElementById(`cracked-${jobId}`);
+        if (crackedElement) {
+            crackedElement.textContent = data.cracked_hashes;
+        }
+
+        // Update ETA
+        const etaElement = document.getElementById(`eta-${jobId}`);
+        if (etaElement && data.estimated_completion) {
+            const eta = new Date(data.estimated_completion);
+            const now = new Date();
+            const diff = eta - now;
+            
+            if (diff > 0) {
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                etaElement.textContent = `${hours}h ${minutes}m`;
+            } else {
+                etaElement.textContent = 'Completed';
+            }
+        }
+
+        // Update crack rate
+        const rateElement = document.getElementById(`rate-${jobId}`);
+        if (rateElement) {
+            rateElement.textContent = Math.round(data.crack_rate || 0);
+        }
+
+        // Update worker count
+        const workersElement = document.getElementById(`workers-${jobId}`);
+        if (workersElement) {
+            workersElement.textContent = data.client_progress ? data.client_progress.length : 0;
+        }
+    }
+
+    setConnectionStatus(connected) {
+        this.isConnected = connected;
+        if (connected) {
+            this.connectionStatus.textContent = 'Connected';
+            this.connectionStatus.className = 'badge bg-success';
+        } else {
+            this.connectionStatus.textContent = 'Disconnected';
+            this.connectionStatus.className = 'badge bg-danger';
+        }
+    }
+}
+
+// Client action functions
+function openTerminal(clientId) {
+    // This would open a web terminal to the client
+    window.open(`/clients/${clientId}/terminal`, '_blank', 'width=800,height=600');
+}
+
+function viewDetails(clientId) {
+    window.location.href = `/clients/${clientId}`;
+}
+
+function stopClient(clientId) {
+    if (confirm('Are you sure you want to stop this client?')) {
+        fetch(`/clients/${clientId}/stop`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update will be reflected in next refresh cycle
+            } else {
+                alert('Error stopping client: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+    }
+}
+
+// Initialize monitor when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+
+    // Start progress monitor
+    const monitor = new ProgressMonitor();
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        monitor.stopUpdates();
+    });
+});
+</script>
+
+<style>
+.status-indicator {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-connected {
+    background-color: #d1edff;
+    color: #0969da;
+}
+
+.status-working {
+    background-color: #dafbe1;
+    color: #1a7f37;
+}
+
+.status-disconnected {
+    background-color: #ffebe9;
+    color: #cf222e;
+}
+
+.status-idle {
+    background-color: #fff8c5;
+    color: #9a6700;
+}
+
+.client-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid var(--bs-border-color);
+}
+
+.client-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.job-progress-card {
+    background: var(--bs-light);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    border: 1px solid var(--bs-border-color);
+}
+
+.progress-text {
+    color: white;
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.feather-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+}
+
+.btn-group .btn {
+    flex: 1;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.status-working .status-indicator {
+    animation: pulse 2s infinite;
+}
+</style>
+{% endblock %}

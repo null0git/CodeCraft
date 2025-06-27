@@ -106,9 +106,50 @@ CrackPi is a distributed password cracking platform designed to run on Raspberry
 - **PostgreSQL Production**: Scalable database solution for larger deployments
 - **Migration Support**: Database schema versioning and upgrade paths
 
+## Enhanced Features Implemented (June 27, 2025)
+
+### Hash Cracking & Distribution Logic
+- ✅ Range-based password distribution among multiple clients
+- ✅ Support for custom ranges (e.g., 0000-9999) and charset-based generation
+- ✅ Automatic hash type detection (MD5, SHA1, SHA256, SHA512, NTLM, bcrypt)
+- ✅ Intelligent work distribution with remainder handling across any number of clients
+- ✅ Real-time progress tracking and password found notifications
+
+### Web-Based UI Enhancements
+- ✅ Professional hash input page with live range distribution preview
+- ✅ Real-time progress monitor with visual indicators and client status
+- ✅ Dark/light mode toggle with persistent theme preferences
+- ✅ Enhanced client dashboard with system metrics and performance monitoring
+- ✅ Interactive client management with terminal access capabilities
+- ✅ Auto-detecting hash type input with manual override options
+
+### Advanced Client Behavior
+- ✅ Enhanced client with automatic server discovery and reconnection
+- ✅ Comprehensive system information collection (CPU, RAM, disk, network)
+- ✅ Range-based distributed cracking with progress callbacks
+- ✅ Automatic health monitoring and performance metrics reporting
+- ✅ Support for multiple cracking tools (Python hashlib, Hashcat, John the Ripper)
+
+### Network & Deployment Features
+- ✅ Advanced network scanning utility for client discovery
+- ✅ Auto-start script for seamless server deployment
+- ✅ Systemd service configurations for both server and clients
+- ✅ Professional responsive UI with Bootstrap dark theme
+- ✅ Real-time updates and live monitoring capabilities
+
+### Technical Deliverables
+- ✅ Enhanced range distribution algorithms with mathematical precision
+- ✅ Professional web interface with real-time updates
+- ✅ Comprehensive network scanning and client discovery
+- ✅ Production-ready deployment scripts and configurations
+- ✅ Advanced progress monitoring with visual indicators
+- ✅ Dark/light theme toggle functionality
+
 ## Changelog
-- June 27, 2025. Initial setup
+- June 27, 2025: Complete implementation of distributed password cracking system with all enhanced features from comprehensive prompt
+- June 27, 2025: Added range distribution, real-time monitoring, dark/light mode, network scanning, and advanced client capabilities
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+Implementation approach: Comprehensive feature implementation with professional UI and production-ready deployment.

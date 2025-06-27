@@ -1,0 +1,129 @@
+Absolutely, Amir. Here’s the **combined AI prompt** merging **both your initial vision** and your **enhanced requirements** (like dividing ranges among clients, setting length/range, client management, web UI, user system, etc.). This is your **complete prompt** to give to an AI for generating your Raspberry Pi–based distributed password cracking system:
+
+---
+
+### 🚀 Combined AI Prompt: Distributed Raspberry Pi Password Cracking Machine
+
+> I want to build a **Distributed Brute-force Password Cracking System** using multiple Raspberry Pis. One Raspberry Pi will act as the **Main Server**, and the rest will be **Clients**. This system must have an interactive **web interface**, full **client/server communication**, and support distributed cracking with detailed monitoring. Here's exactly what I need:
+>
+> ---
+>
+> ### 🧠 Hash Cracking & Distribution Logic
+>
+> * The system accepts a **hash** (e.g., `ueoiewgfywfyfelwyfyeiwfyew`) and a known or expected **password pattern**.
+> * The user can:
+>
+>   * Input **password length** (e.g., 4 digits)
+>   * Define **custom range** (e.g., 0000–9999)
+>   * OR choose to **"Try All"** (generate all possible combinations of a charset and length).
+> * The server divides the total number of possibilities among connected clients:
+>
+>   * Example: if range is 0000–9999 and 4 clients are connected, split into 2500/2500/2500/2501
+>   * This should work for any number of clients, and any range/length.
+> * Clients receive a start–end range and attempt cracking using **John the Ripper**, **Hashcat**, or Python with `hashlib` and `itertools`.
+> * When one client successfully cracks the hash:
+>
+>   * It reports back to the server.
+>   * The server notifies other clients to stop.
+>   * Web UI displays the cracked password, hash type, who cracked it, and time taken.
+>
+> ---
+>
+> ### 🌐 Web-Based UI (Main Server)
+>
+> * Web app should be launched automatically on boot (`server.py` + browser).
+> * User must go through **initial setup** on first run (create admin user).
+> * Features include:
+>
+>   * **Hash Input Page**:
+>
+>     * Upload or paste hash(es)
+>     * Auto-detect hash type (or allow manual)
+>     * Enter password length, range, charset, or “Try All”
+>   * **Progress Monitor**:
+>
+>     * View % complete for each client
+>     * Display number of attempts, estimated time, and visual progress bar
+>     * Real-time updates
+>   * **Client Status Dashboard**:
+>
+>     * Connected clients info:
+>
+>       * IP address, MAC address
+>       * CPU model & frequency
+>       * RAM usage, disk usage
+>       * Network status (ping/latency to server)
+>       * Client ID, hostname, OS, username
+>       * Work status (Idle, Cracking, Done)
+>       * Green/red indicator for connectivity
+>     * **Interactive shell** per client (web terminal like `xterm.js`)
+>   * **Server Tab**:
+>
+>     * Shows the main Raspberry Pi's status just like a client
+>   * **Settings Page**:
+>
+>     * Add/remove users
+>     * Change password
+>     * Configure server hostname/port/etc.
+>   * **Dark mode and light mode** toggle
+>
+> ---
+>
+> ### 🖥️ Client Behavior
+>
+> * Each client runs a `client.py` script.
+> * Automatically connects to server (or can be added manually via IP).
+> * Sends system info and health data to server periodically.
+> * Accepts task from server (start password, end password, hash, type).
+> * Cracks assigned range using brute-force and reports progress.
+> * Stops when instructed by server.
+> * Stays idle and auto reconnects after reboot or disconnect.
+>
+> ---
+>
+> ### 📦 Project Deliverables
+>
+> * `server.py`: Main server logic (API + job manager)
+> * `client.py`: Cracking agent for distributed devices
+> * `web-ui/`: HTML/CSS/JS frontend (responsive with dark/light mode)
+> * `config/config.json` or SQLite DB: Persistent settings and users
+> * `autostart.sh`: Script to auto-run server and browser at boot
+> * `systemd` service files for both server and client startup
+> * `scan_clients.py`: To discover clients on LAN using `nmap` or sockets
+> * `conf-readme.md`: Instructions for setup, dependencies, and configuration
+>
+> ---
+>
+> ### 🔧 Tech Stack Recommendations
+>
+> * **Backend**: Python 3 + FastAPI or Flask
+> * **Frontend**: HTML, CSS, JS (or React for dynamic UI)
+> * **Utilities**:
+>
+>   * `hashlib`, `itertools` – for password generation
+>   * `psutil`, `platform`, `socket`, `nmap`, `netifaces` – for system and network info
+>   * `xterm.js` – for interactive shell
+>   * `json`, `sqlite3`, `multiprocessing`
+> * **Security**:
+>
+>   * Password hashing
+>   * Session-based auth
+>   * Input validation
+>
+> ---
+>
+> ### ✅ Optional Features (If Possible)
+>
+> * Download cracked hash results as CSV
+> * Persistent logs
+> * Docker version for server and clients
+> * Task history viewer
+> * Hashcat GPU acceleration support for compatible devices
+>
+> ---
+>
+> Write **well-commented**, modular, production-ready Python code. Optimize performance for low-resource Raspberry Pis. Ensure the web interface is professional, modern, and responsive.
+
+---
+
+Let me know when you want me to **start building this system for you step-by-step** or generate the **project structure and code templates**.

@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+
+{% block title %}Hash Input - CrackPi{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="feather-icon" data-feather="hash"></i> Hash Input & Distribution</h2>
+                <div class="badge bg-info">{{ connected_clients|length }} Clients Connected</div>
+            </div>
+        </div>
+    </div>
+
+    {% if connected_clients|length == 0 %}
+    <div class="alert alert-warning" role="alert">
+        <i class="feather-icon" data-feather="alert-triangle"></i>
+        <strong>No clients connected!</strong> Please connect Raspberry Pi clients before creating jobs.
+        <a href="{{ url_for('clients.index') }}" class="alert-link">View Client Status</a>
+    </div>
+    {% endif %}
+
+    <form id="hashForm" method="POST" action="{{ url_for('hash_input.create_job') }}">
+        <div class="row">
+            <!-- Job Configuration -->
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="feather-icon" data-feather="settings"></i> Job Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Job Name -->
+                        <div class="mb-3">
+                            <label for="job_name" class="form-label">Job Name</label>
+                            <input type="text" class="form-control" id="job_name" name="job_name" 
+                                   placeholder="Enter descriptive job name" required>
+                        </div>
+
+                        <!-- Hash Input -->
+                        <div class="mb-3">
+                            <label for="hash_input" class="form-label">Hash Input</label>
+                            <textarea class="form-control" id="hash_input" name="hash_input" rows="6" 
+                                      placeholder="Enter hashes (one per line):&#10;5d41402abc4b2a76b9719d911017c592&#10;or&#10;user1:5d41402abc4b2a76b9719d911017c592&#10;or&#10;5d41402abc4b2a76b9719d911017c592:salt" required></textarea>
+                            <div class="form-text">
+                                Supported formats: hash, username:hash, hash:salt, username:hash:salt
+                            </div>
+                        </div>
+
+                        <!-- Hash Type Detection -->
+                        <div class="mb-3">
+                            <label class="form-label">Hash Type</label>
+                            <div class="row">
+                                <div class="col-8">
+                                    <input type="text" class="form-control" id="detected_hash_type" readonly 
+                                           placeholder="Auto-detected from input">
+                                </div>
+                                <div class="col-4">
+                                    <button type="button" class="btn btn-outline-secondary w-100" id="detectHashBtn">
+                                        <i class="feather-icon" data-feather="search"></i> Detect
+                                    </button>
+                                </div>
+                            </div>
+                            <select class="form-select mt-2" id="hash_type_manual" name="hash_type_manual" style="display: none;">
+                                <option value="md5">MD5</option>
+                                <option value="sha1">SHA1</option>
+                                <option value="sha256">SHA256</option>
+                                <option value="sha512">SHA512</option>
+                                <option value="ntlm">NTLM</option>
+                                <option value="bcrypt">bcrypt</option>
+                            </select>
+                        </div>
+
+                        <!-- Priority -->
+                        <div class="mb-3">
+                            <label for="priority" class="form-label">Priority</label>
+                            <select class="form-select" id="priority" name="priority">
+                                <option value="1">High (1)</option>
+                                <option value="3">Medium-High (3)</option>
+                                <option value="5" selected>Normal (5)</option>
+                                <option value="7">Medium-Low (7)</option>
+                                <option value="10">Low (10)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attack Configuration -->
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="feather-icon" data-feather="target"></i> Attack Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Attack Mode -->
+                        <div class="mb-3">
+                            <label class="form-label">Attack Mode</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="attack_mode" id="mode_range" value="range" checked>
+                                <label class="btn btn-outline-primary" for="mode_range">Custom Range</label>
+                                
+                                <input type="radio" class="btn-check" name="attack_mode" id="mode_charset" value="charset">
+                                <label class="btn btn-outline-primary" for="mode_charset">Try All</label>
+                            </div>
+                        </div>
+
+                        <!-- Range Mode Configuration -->
+                        <div id="range_config" class="attack-config">
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label for="start_range" class="form-label">Start Range</label>
+                                    <input type="text" class="form-control" id="start_range" name="start_range" 
+                                           placeholder="0000" value="0000">
+                                </div>
+                                <div class="col-6">
+                                    <label for="end_range" class="form-label">End Range</label>
+                                    <input type="text" class="form-control" id="end_range" name="end_range" 
+                                           placeholder="9999" value="9999">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Charset Mode Configuration -->
+                        <div id="charset_config" class="attack-config" style="display: none;">
+                            <div class="mb-3">
+                                <label for="password_length" class="form-label">Password Length</label>
+                                <input type="number" class="form-control" id="password_length" name="password_length" 
+                                       min="1" max="20" value="4">
+                            </div>
+                        </div>
+
+                        <!-- Character Set Selection -->
+                        <div class="mb-3">
+                            <label for="charset" class="form-label">Character Set</label>
+                            <select class="form-select" id="charset" name="charset">
+                                {% for option in charset_options %}
+                                <option value="{{ option.value }}" data-example="{{ option.example }}">
+                                    {{ option.label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">
+                                <small id="charset_preview">Preview: 0123456789</small>
+                            </div>
+                        </div>
+
+                        <!-- Preview Distribution Button -->
+                        <button type="button" class="btn btn-info w-100 mb-3" id="previewBtn" 
+                                {% if connected_clients|length == 0 %}disabled{% endif %}>
+                            <i class="feather-icon" data-feather="eye"></i> Preview Distribution
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Distribution Preview -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card" id="distributionCard" style="display: none;">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="feather-icon" data-feather="users"></i> Range Distribution Preview</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="distributionContent">
+                            <!-- Distribution details will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{{ url_for('dashboard.index') }}" class="btn btn-secondary me-md-2">Cancel</a>
+                    <button type="submit" class="btn btn-primary" id="submitBtn" 
+                            {% if connected_clients|length == 0 %}disabled{% endif %}>
+                        <i class="feather-icon" data-feather="play"></i> Start Cracking Job
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+
+    // Form elements
+    const hashInput = document.getElementById('hash_input');
+    const detectedHashType = document.getElementById('detected_hash_type');
+    const detectHashBtn = document.getElementById('detectHashBtn');
+    const attackModeRadios = document.querySelectorAll('input[name="attack_mode"]');
+    const rangeConfig = document.getElementById('range_config');
+    const charsetConfig = document.getElementById('charset_config');
+    const charsetSelect = document.getElementById('charset');
+    const charsetPreview = document.getElementById('charset_preview');
+    const previewBtn = document.getElementById('previewBtn');
+    const distributionCard = document.getElementById('distributionCard');
+    const distributionContent = document.getElementById('distributionContent');
+
+    // Character set examples
+    const charsetExamples = {
+        'digits': '0123456789',
+        'lowercase': 'abcdefghijklmnopqrstuvwxyz',
+        'uppercase': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        'letters': 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        'alphanumeric': 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+        'symbols': '!@#$%^&*()_+-=[]{}|;:,.<>?',
+        'all': 'Letters + Digits + Symbols'
+    };
+
+    // Hash type detection
+    detectHashBtn.addEventListener('click', function() {
+        const hashValue = hashInput.value.trim().split('\n')[0].split(':')[0];
+        if (hashValue) {
+            // Simple hash type detection based on length
+            let hashType = 'unknown';
+            const cleanHash = hashValue.trim().toLowerCase();
+            
+            if (cleanHash.length === 32) hashType = 'md5';
+            else if (cleanHash.length === 40) hashType = 'sha1';
+            else if (cleanHash.length === 64) hashType = 'sha256';
+            else if (cleanHash.length === 128) hashType = 'sha512';
+            
+            detectedHashType.value = hashType;
+            
+            if (hashType === 'unknown') {
+                document.getElementById('hash_type_manual').style.display = 'block';
+            }
+        }
+    });
+
+    // Attack mode switching
+    attackModeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'range') {
+                rangeConfig.style.display = 'block';
+                charsetConfig.style.display = 'none';
+            } else {
+                rangeConfig.style.display = 'none';
+                charsetConfig.style.display = 'block';
+            }
+            distributionCard.style.display = 'none';
+        });
+    });
+
+    // Charset preview update
+    charsetSelect.addEventListener('change', function() {
+        const example = charsetExamples[this.value] || this.value;
+        charsetPreview.textContent = 'Preview: ' + (example.length > 50 ? example.substring(0, 50) + '...' : example);
+    });
+
+    // Distribution preview
+    previewBtn.addEventListener('click', function() {
+        const formData = new FormData(document.getElementById('hashForm'));
+        const data = Object.fromEntries(formData.entries());
+        
+        // Show loading
+        distributionContent.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div></div>';
+        distributionCard.style.display = 'block';
+        
+        fetch('/hash/preview-distribution', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                distributionContent.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+            } else {
+                displayDistribution(data);
+            }
+        })
+        .catch(error => {
+            distributionContent.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        });
+    });
+
+    function displayDistribution(data) {
+        const clientRanges = data.client_ranges;
+        const totalCombinations = data.total_combinations;
+        
+        let html = `
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <h4 class="text-primary">${totalCombinations.toLocaleString()}</h4>
+                        <small class="text-muted">Total Combinations</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <h4 class="text-success">${data.num_clients}</h4>
+                        <small class="text-muted">Connected Clients</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <h4 class="text-info">${Math.round(totalCombinations / data.num_clients).toLocaleString()}</h4>
+                        <small class="text-muted">Avg per Client</small>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Client #</th>
+                            <th>Start Password</th>
+                            <th>End Password</th>
+                            <th>Combinations</th>
+                            <th>Percentage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        clientRanges.forEach((range, index) => {
+            const percentage = ((range.total_combinations / totalCombinations) * 100).toFixed(2);
+            html += `
+                <tr>
+                    <td><span class="badge bg-secondary">Client ${index + 1}</span></td>
+                    <td><code>${range.start_password}</code></td>
+                    <td><code>${range.end_password}</code></td>
+                    <td>${range.total_combinations.toLocaleString()}</td>
+                    <td>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar" style="width: ${percentage}%">${percentage}%</div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        distributionContent.innerHTML = html;
+    }
+
+    // Auto-detect hash type on input
+    hashInput.addEventListener('input', function() {
+        if (this.value.trim()) {
+            detectHashBtn.click();
+        }
+    });
+
+    // Initialize charset preview
+    charsetSelect.dispatchEvent(new Event('change'));
+});
+</script>
+
+<style>
+.attack-config {
+    border-left: 3px solid var(--bs-primary);
+    padding-left: 15px;
+    margin-left: 10px;
+}
+
+.progress {
+    background-color: var(--bs-gray-200);
+}
+
+.card-header {
+    background-color: var(--bs-light);
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+code {
+    background-color: var(--bs-gray-100);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+
+.btn-check:checked + .btn-outline-primary {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+    color: white;
+}
+
+.feather-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+}
+</style>
+{% endblock %}
