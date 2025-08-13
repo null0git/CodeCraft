@@ -20,8 +20,12 @@ def create_app():
     app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key-change-in-production")
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
     
-    # Database configuration
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///crackpi.db")
+    # Database configuration with fallback
+    database_url = os.environ.get("DATABASE_URL", "sqlite:///crackpi.db")
+    # Fix for SQLite URI format
+    if database_url.startswith("sqlite://") and not database_url.startswith("sqlite:///"):
+        database_url = database_url.replace("sqlite://", "sqlite:///")
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
         "pool_recycle": 300,
         "pool_pre_ping": True,
@@ -44,6 +48,7 @@ def create_app():
     from routes.api import api_bp
     from routes.hash_input import hash_input_bp
     from routes.progress import progress_bp
+    from routes.terminal import terminal_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -53,6 +58,7 @@ def create_app():
     app.register_blueprint(api_bp)
     app.register_blueprint(hash_input_bp)
     app.register_blueprint(progress_bp)
+    app.register_blueprint(terminal_bp)
     
     # Create tables
     with app.app_context():

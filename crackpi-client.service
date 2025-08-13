@@ -1,45 +1,36 @@
 [Unit]
 Description=CrackPi Distributed Password Cracking Client
-After=network.target network-online.target
-Wants=network-online.target
+After=network.target
+Wants=network.target
 
 [Service]
 Type=simple
 User=pi
 Group=pi
 WorkingDirectory=/home/pi/crackpi
-Environment=PATH=/home/pi/crackpi/venv/bin:/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONPATH=/home/pi/crackpi
-EnvironmentFile=-/etc/crackpi/client.env
-ExecStart=/home/pi/crackpi/venv/bin/python3 /home/pi/crackpi/client.py
+Environment=CRACKPI_SERVER_URL=http://localhost:5000
+ExecStart=/home/pi/crackpi/venv/bin/python enhanced_client.py --server $CRACKPI_SERVER_URL
+ExecReload=/bin/kill -s HUP $MAINPID
 Restart=always
-RestartSec=15
+RestartSec=10
+KillMode=process
+TimeoutStopSec=30
+
+# Resource limits - Allow 95% CPU for cracking
+CPUQuota=95%
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/home/pi/crackpi /var/log/crackpi
+PrivateTmp=true
+
+# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=crackpi-client
-
-# Security settings
-NoNewPrivileges=true
-ProtectHome=false
-ProtectSystem=strict
-ReadWritePaths=/var/log/crackpi /tmp /home/pi/crackpi
-PrivateTmp=true
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
-
-# Resource limits - Allow more resources for cracking
-LimitNOFILE=65536
-MemoryMax=2G
-CPUQuota=95%
-
-# Restart conditions
-StartLimitInterval=300
-StartLimitBurst=5
-
-# Environment for cracking tools
-Environment=HASHCAT_FORCE=1
-Environment=OPENCL_FORCE_CPU=1
 
 [Install]
 WantedBy=multi-user.target

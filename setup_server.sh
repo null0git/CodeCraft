@@ -1,279 +1,180 @@
 #!/bin/bash
+"""
+CrackPi Server Setup Script
+Installs and configures the CrackPi server with all dependencies
+"""
 
-# CrackPi Server Setup Script
-# This script sets up the CrackPi main server on a Raspberry Pi
+set -e  # Exit on any error
 
-set -e
+echo "🚀 Setting up CrackPi Server..."
 
-echo "========================================="
-echo "CrackPi Server Setup"
-echo "========================================="
+# Configuration
+CRACKPI_USER="pi"
+CRACKPI_DIR="/home/pi/crackpi"
+LOG_DIR="/var/log/crackpi"
+SERVICE_NAME="crackpi-server"
 
-# Check if running as root
-if [[ $EUID -eq 0 ]]; then
-   echo "This script should not be run as root. Please run as a regular user with sudo privileges."
-   exit 1
-fi
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
+# Function to print colored output
 print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    echo -e "\033[1;32m[INFO]\033[0m $1"
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "\033[1;31m[ERROR]\033[0m $1"
 }
 
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CRACKPI_DIR="$SCRIPT_DIR"
+print_warning() {
+    echo -e "\033[1;33m[WARNING]\033[0m $1"
+}
 
-print_status "Starting CrackPi server setup..."
-print_status "Installation directory: $CRACKPI_DIR"
+# Check if running as root
+if [[ $EUID -eq 0 ]]; then
+    print_error "This script should not be run as root. Please run as the pi user."
+    exit 1
+fi
+
+print_status "Starting CrackPi Server installation..."
 
 # Update system packages
 print_status "Updating system packages..."
 sudo apt update && sudo apt upgrade -y
 
 # Install required system packages
-print_status "Installing required system packages..."
+print_status "Installing system dependencies..."
 sudo apt install -y \
     python3 \
     python3-pip \
     python3-venv \
-    git \
+    python3-dev \
+    build-essential \
     sqlite3 \
-    nginx \
-    supervisor \
-    nmap \
-    hashcat \
-    john \
+    git \
     curl \
+    nmap \
     htop \
-    screen \
-    tmux
+    nginx \
+    ufw
 
-# Install additional wordlists
-print_status "Installing wordlists..."
-sudo apt install -y wordlists
-if [ ! -f /usr/share/wordlists/rockyou.txt ]; then
-    print_warning "RockYou wordlist not found. Downloading..."
-    sudo mkdir -p /usr/share/wordlists
-    cd /tmp
-    wget https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt
-    sudo mv rockyou.txt /usr/share/wordlists/
-    cd "$CRACKPI_DIR"
-fi
+# Install password cracking tools
+print_status "Installing password cracking tools..."
+sudo apt install -y john hashcat || print_warning "Some cracking tools may not be available in repositories"
+
+# Create CrackPi directory
+print_status "Setting up CrackPi directory..."
+mkdir -p $CRACKPI_DIR
+cd $CRACKPI_DIR
 
 # Create Python virtual environment
 print_status "Creating Python virtual environment..."
 python3 -m venv venv
 source venv/bin/activate
 
-# Upgrade pip
-print_status "Upgrading pip..."
-pip install --upgrade pip
-
 # Install Python dependencies
 print_status "Installing Python dependencies..."
+pip install --upgrade pip
 pip install \
     flask \
     flask-sqlalchemy \
     flask-login \
-    flask-socketio \
+    gunicorn \
+    psycopg2-binary \
+    python-socketio \
+    eventlet \
+    requests \
     psutil \
     python-nmap \
     netifaces \
     paramiko \
-    python-socketio \
-    eventlet \
-    gunicorn \
     werkzeug
 
-# Create necessary directories
-print_status "Creating directories..."
-sudo mkdir -p /var/log/crackpi
-sudo mkdir -p /etc/crackpi
-sudo mkdir -p /var/lib/crackpi
-sudo mkdir -p "$CRACKPI_DIR/uploads"
+# Create log directory
+print_status "Creating log directories..."
+sudo mkdir -p $LOG_DIR
+sudo chown $CRACKPI_USER:$CRACKPI_USER $LOG_DIR
 
-# Set permissions
-sudo chown -R $USER:$USER /var/log/crackpi
-sudo chown -R $USER:$USER /var/lib/crackpi
-sudo chown -R $USER:$USER "$CRACKPI_DIR"
-
-# Create configuration file
-print_status "Creating configuration file..."
-cat > /etc/crackpi/server.conf << EOF
-# CrackPi Server Configuration
-
-[server]
-host = 0.0.0.0
-port = 5000
-debug = false
-secret_key = $(openssl rand -hex 32)
-
-[database]
-url = sqlite:///var/lib/crackpi/crackpi.db
-
-[paths]
-upload_dir = $CRACKPI_DIR/uploads
-wordlists_dir = /usr/share/wordlists
-rules_dir = /usr/share/hashcat/rules
-
-[tools]
-hashcat_path = /usr/bin/hashcat
-john_path = /usr/bin/john
-
-[network]
-scan_interval = 300
-client_timeout = 1800
-EOF
-
-sudo chown root:root /etc/crackpi/server.conf
-sudo chmod 644 /etc/crackpi/server.conf
-
-# Copy systemd service file
+# Copy service file
 print_status "Installing systemd service..."
-sudo cp "$CRACKPI_DIR/crackpi-server.service" /etc/systemd/system/
+sudo cp crackpi-server.service /etc/systemd/system/
 sudo systemctl daemon-reload
 
-# Initialize database
-print_status "Initializing database..."
-cd "$CRACKPI_DIR"
-source venv/bin/activate
-python3 -c "
-from app import app, db
-with app.app_context():
-    db.create_all()
-    print('Database initialized successfully')
-"
+# Configure firewall
+print_status "Configuring firewall..."
+sudo ufw allow 5000/tcp
+sudo ufw allow 22/tcp
+sudo ufw --force enable
 
-# Configure nginx (optional)
-read -p "Do you want to configure Nginx reverse proxy? (y/N): " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    print_status "Configuring Nginx..."
-    
-    sudo tee /etc/nginx/sites-available/crackpi << EOF
+# Configure nginx (optional reverse proxy)
+print_status "Configuring nginx reverse proxy..."
+sudo tee /etc/nginx/sites-available/crackpi > /dev/null << 'EOF'
 server {
     listen 80;
     server_name _;
     
     location / {
         proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     location /socket.io {
         proxy_pass http://127.0.0.1:5000;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 EOF
-    
-    sudo ln -sf /etc/nginx/sites-available/crackpi /etc/nginx/sites-enabled/
-    sudo rm -f /etc/nginx/sites-enabled/default
-    sudo nginx -t && sudo systemctl restart nginx
-    sudo systemctl enable nginx
-fi
 
-# Configure firewall
-print_status "Configuring firewall..."
-sudo ufw allow ssh
-sudo ufw allow 5000/tcp
-if command -v nginx >/dev/null 2>&1; then
-    sudo ufw allow 'Nginx Full'
-fi
-echo "y" | sudo ufw enable
+sudo ln -sf /etc/nginx/sites-available/crackpi /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl restart nginx
 
-# Enable and start services
-print_status "Enabling and starting services..."
-sudo systemctl enable crackpi-server
-sudo systemctl start crackpi-server
+# Create database
+print_status "Initializing database..."
+export DATABASE_URL="sqlite:///$CRACKPI_DIR/crackpi.db"
+python3 -c "from app import create_app; app = create_app()"
 
-# Create desktop shortcut for GUI access
-if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
-    print_status "Creating desktop shortcut..."
-    cat > ~/Desktop/CrackPi.desktop << EOF
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=CrackPi Server
-Comment=CrackPi Distributed Password Cracking
-Exec=xdg-open http://localhost:5000
-Icon=applications-internet
-Terminal=false
-Categories=Network;Security;
-EOF
-    chmod +x ~/Desktop/CrackPi.desktop
-fi
+# Make scripts executable
+chmod +x *.sh *.py
 
-# Get network information
-IP_ADDRESS=$(hostname -I | awk '{print $1}')
-HOSTNAME=$(hostname)
+# Enable and start service
+print_status "Enabling CrackPi server service..."
+sudo systemctl enable $SERVICE_NAME
+sudo systemctl start $SERVICE_NAME
 
-# Installation complete
-print_status "========================================="
-print_status "CrackPi Server installation complete!"
-print_status "========================================="
-print_status ""
-print_status "Server Information:"
-print_status "  Hostname: $HOSTNAME"
-print_status "  IP Address: $IP_ADDRESS"
-print_status "  Web Interface: http://$IP_ADDRESS:5000"
-print_status ""
-print_status "Default Login:"
-print_status "  Username: admin"
-print_status "  Password: admin123"
-print_status ""
-print_status "Service Management:"
-print_status "  Start:   sudo systemctl start crackpi-server"
-print_status "  Stop:    sudo systemctl stop crackpi-server"
-print_status "  Restart: sudo systemctl restart crackpi-server"
-print_status "  Status:  sudo systemctl status crackpi-server"
-print_status "  Logs:    sudo journalctl -u crackpi-server -f"
-print_status ""
-print_status "Configuration:"
-print_status "  Server config: /etc/crackpi/server.conf"
-print_status "  Database: /var/lib/crackpi/crackpi.db"
-print_status "  Logs: /var/log/crackpi/"
-print_status ""
+# Wait for service to start
+sleep 5
 
 # Check service status
-sleep 2
-if sudo systemctl is-active --quiet crackpi-server; then
-    print_status "✓ CrackPi server is running successfully!"
-    print_status "✓ You can now access the web interface at: http://$IP_ADDRESS:5000"
+if sudo systemctl is-active --quiet $SERVICE_NAME; then
+    print_status "✅ CrackPi server installed and started successfully!"
+    print_status "🌐 Web interface: http://$(hostname -I | cut -d' ' -f1)"
+    print_status "🔑 Default login: admin / admin123"
 else
-    print_error "✗ CrackPi server failed to start. Check logs with: sudo journalctl -u crackpi-server"
+    print_error "❌ Service failed to start. Check logs with: sudo journalctl -u $SERVICE_NAME"
 fi
 
-print_status ""
-print_status "Next steps:"
-print_status "1. Access the web interface and change the default admin password"
-print_status "2. Set up client Raspberry Pis using the setup_client.sh script"
-print_status "3. Configure network settings and client discovery"
-print_status ""
-print_status "For client setup, copy the CrackPi files to each client Pi and run:"
-print_status "  ./setup_client.sh $IP_ADDRESS"
-print_status ""
-print_warning "Remember to change the default admin password!"
+# Create stop/start scripts
+cat > start_server.sh << 'EOF'
+#!/bin/bash
+sudo systemctl start crackpi-server
+echo "CrackPi server started"
+sudo systemctl status crackpi-server --no-pager
+EOF
+
+cat > stop_server.sh << 'EOF'
+#!/bin/bash
+sudo systemctl stop crackpi-server
+echo "CrackPi server stopped"
+EOF
+
+chmod +x start_server.sh stop_server.sh
+
+print_status "📋 Management commands:"
+print_status "  Start:   ./start_server.sh"
+print_status "  Stop:    ./stop_server.sh"
+print_status "  Status:  sudo systemctl status crackpi-server"
+print_status "  Logs:    sudo journalctl -u crackpi-server -f"
+
+print_status "🎉 CrackPi Server setup complete!"

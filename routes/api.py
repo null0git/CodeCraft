@@ -9,6 +9,82 @@ logger = logging.getLogger(__name__)
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
+@api_bp.route('/ping', methods=['GET'])
+def ping():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'ok',
+        'message': 'CrackPi server is running',
+        'timestamp': datetime.utcnow().isoformat(),
+        'version': '1.0.0'
+    })
+
+@api_bp.route('/clients/register', methods=['POST'])
+def register_client():
+    """Register a new client"""
+    data = request.get_json()
+    client_id = data.get('client_id')
+    system_info = data.get('system_info', {})
+    
+    # Check if client already exists
+    client = Client.query.filter_by(client_id=client_id).first()
+    
+    if not client:
+        # Create new client
+        client = Client()
+        client.client_id = client_id
+        client.hostname = system_info.get('network', {}).get('hostname', 'Unknown')
+        client.ip_address = system_info.get('network', {}).get('ip_address', '127.0.0.1')
+        client.mac_address = system_info.get('network', {}).get('mac_address', '00:00:00:00:00:00')
+        client.status = 'online'
+        client.cpu_cores = system_info.get('cpu', {}).get('cores', 1)
+        client.ram_total = system_info.get('memory', {}).get('total', 0)
+        client.disk_total = system_info.get('disk', {}).get('total', 0)
+        client.last_seen = datetime.utcnow()
+        
+        db.session.add(client)
+        db.session.commit()
+        
+        logger.info(f"Registered new client: {client_id}")
+    else:
+        # Update existing client
+        client.status = 'online'
+        client.last_seen = datetime.utcnow()
+        db.session.commit()
+        
+        logger.info(f"Updated existing client: {client_id}")
+    
+    return jsonify({'status': 'registered', 'client_id': client_id})
+
+@api_bp.route('/clients/heartbeat', methods=['POST'])
+def client_heartbeat():
+    """Receive heartbeat from client"""
+    data = request.get_json()
+    client_id = data.get('client_id')
+    
+    client = Client.query.filter_by(client_id=client_id).first()
+    if client:
+        client.status = data.get('status', 'idle')
+        client.last_seen = datetime.utcnow()
+        
+        # Update metrics if provided
+        metrics = data.get('system_metrics', {})
+        if metrics:
+            client.cpu_usage = metrics.get('cpu_usage', 0)
+            client.ram_usage = metrics.get('memory_usage', 0)
+            client.disk_usage = metrics.get('disk_usage', 0)
+            client.network_latency = metrics.get('network_latency', 0)
+        
+        db.session.commit()
+        
+        # Return any commands for the client
+        return jsonify({
+            'status': 'ok',
+            'commands': []  # Commands would be queued here
+        })
+    
+    return jsonify({'error': 'Client not found'}), 404
+
 @api_bp.route('/clients')
 @login_required
 def get_clients():

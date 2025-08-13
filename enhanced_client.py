@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Enhanced CrackPi Client - Distributed Password Cracking Agent
+Enhanced CrackPi Client - Distributed Password Cracking Agent  
 Connects to main server and performs distributed password cracking with range assignment
+Includes terminal integration and full communication features
 """
 
 import os
@@ -17,9 +18,9 @@ import socket
 import platform
 import psutil
 import requests
+import subprocess
 from datetime import datetime
 from typing import Dict, Optional, Callable
-from utils.hash_cracker import HashCracker, PasswordGenerator, RangeDistributor
 
 # Configure logging
 logging.basicConfig(
@@ -52,6 +53,10 @@ class EnhancedCrackPiClient:
         self.jobs_completed = 0
         self.hashes_cracked = 0
         self.total_attempts = 0
+        
+        # Terminal integration
+        self.command_poll_interval = 5
+        self.terminal_thread = None
         
         logger.info(f"Enhanced CrackPi Client initialized - ID: {self.client_id}")
         logger.info(f"Server URL: {self.server_url}")
@@ -493,6 +498,10 @@ class EnhancedCrackPiClient:
         job_thread = threading.Thread(target=self.poll_for_jobs, daemon=True)
         job_thread.start()
         
+        # Start terminal command polling thread
+        self.terminal_thread = threading.Thread(target=self.poll_terminal_commands, daemon=True)
+        self.terminal_thread.start()
+        
         logger.info("Enhanced CrackPi Client started successfully")
         logger.info(f"Client ID: {self.client_id}")
         logger.info(f"Server: {self.server_url}")
@@ -537,6 +546,99 @@ class EnhancedCrackPiClient:
             pass
         
         logger.info("Enhanced CrackPi Client stopped")
+    
+    def poll_terminal_commands(self):
+        """Poll server for terminal commands"""
+        while self.running:
+            try:
+                response = self.session.get(
+                    f"{self.server_url}/terminal/api/commands/{self.client_id}",
+                    timeout=5
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    commands = result.get('commands', [])
+                    
+                    for command_data in commands:
+                        self.execute_terminal_command(command_data)
+                        
+            except Exception as e:
+                logger.debug(f"Terminal polling error: {e}")
+            
+            time.sleep(self.command_poll_interval)
+    
+    def execute_terminal_command(self, command_data: Dict):
+        """Execute terminal command and send response"""
+        command_id = command_data.get('command_id')
+        session_id = command_data.get('session_id')
+        command = command_data.get('command', '')
+        
+        logger.info(f"Executing terminal command: {command}")
+        
+        try:
+            # Execute command with timeout
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            # Send response back to server
+            response_data = {
+                'command_id': command_id,
+                'session_id': session_id,
+                'stdout': result.stdout,
+                'stderr': result.stderr,
+                'return_code': result.returncode,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+            self.session.post(
+                f"{self.server_url}/terminal/api/response",
+                json=response_data,
+                timeout=5
+            )
+            
+            logger.info(f"Terminal command completed: {command_id}")
+            
+        except subprocess.TimeoutExpired:
+            logger.error(f"Terminal command timed out: {command}")
+            # Send timeout response
+            response_data = {
+                'command_id': command_id,
+                'session_id': session_id,
+                'stdout': '',
+                'stderr': 'Command timed out after 30 seconds',
+                'return_code': 124,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+            self.session.post(
+                f"{self.server_url}/terminal/api/response",
+                json=response_data,
+                timeout=5
+            )
+            
+        except Exception as e:
+            logger.error(f"Terminal command error: {e}")
+            # Send error response
+            response_data = {
+                'command_id': command_id,
+                'session_id': session_id,
+                'stdout': '',
+                'stderr': f'Command execution error: {str(e)}',
+                'return_code': 1,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+            self.session.post(
+                f"{self.server_url}/terminal/api/response",
+                json=response_data,
+                timeout=5
+            )
 
 def signal_handler(signum, frame):
     """Handle shutdown signals"""
