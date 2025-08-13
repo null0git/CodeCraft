@@ -1,9 +1,15 @@
 import os
 from app import create_app
 
-# Set environment variable for SQLite if no DATABASE_URL
-if not os.environ.get("DATABASE_URL"):
-    os.environ["DATABASE_URL"] = "sqlite:///crackpi.db"
+# Force SQLite by clearing PostgreSQL environment variables
+pg_vars = ['DATABASE_URL', 'PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD', 'PGDATABASE']
+for var in pg_vars:
+    if var in os.environ:
+        del os.environ[var]
+
+# Set SQLite configuration
+os.environ["DATABASE_URL"] = "sqlite:///crackpi.db"
+os.environ["SESSION_SECRET"] = "dev-secret-key-change-in-production"
 
 app = create_app()
 

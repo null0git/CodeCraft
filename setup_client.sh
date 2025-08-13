@@ -6,12 +6,25 @@ Installs and configures CrackPi client to connect to server
 
 set -e  # Exit on any error
 
-# Configuration
-CRACKPI_USER="pi"
-CRACKPI_DIR="/home/pi/crackpi"
+# Auto-detect user and configuration
+CURRENT_USER=$(whoami)
+CRACKPI_USER="${CURRENT_USER}"
+CRACKPI_DIR="/home/${CURRENT_USER}/crackpi"
 LOG_DIR="/var/log/crackpi"
 SERVICE_NAME="crackpi-client"
 SERVER_IP="${1:-localhost}"
+
+# If running as root, use a dedicated user
+if [[ $EUID -eq 0 ]]; then
+    CRACKPI_USER="crackpi"
+    CRACKPI_DIR="/opt/crackpi"
+    
+    # Create dedicated user
+    if ! id "$CRACKPI_USER" &>/dev/null; then
+        useradd -r -s /bin/bash -m -d "$CRACKPI_DIR" "$CRACKPI_USER"
+        print_status "Created dedicated user: $CRACKPI_USER"
+    fi
+fi
 
 echo "🔧 Setting up CrackPi Client..."
 

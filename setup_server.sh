@@ -8,11 +8,24 @@ set -e  # Exit on any error
 
 echo "🚀 Setting up CrackPi Server..."
 
-# Configuration
-CRACKPI_USER="pi"
-CRACKPI_DIR="/home/pi/crackpi"
+# Auto-detect user and configuration
+CURRENT_USER=$(whoami)
+CRACKPI_USER="${CURRENT_USER}"
+CRACKPI_DIR="/home/${CURRENT_USER}/crackpi"
 LOG_DIR="/var/log/crackpi"
 SERVICE_NAME="crackpi-server"
+
+# If running as root, use a dedicated user
+if [[ $EUID -eq 0 ]]; then
+    CRACKPI_USER="crackpi"
+    CRACKPI_DIR="/opt/crackpi"
+    
+    # Create dedicated user
+    if ! id "$CRACKPI_USER" &>/dev/null; then
+        useradd -r -s /bin/bash -m -d "$CRACKPI_DIR" "$CRACKPI_USER"
+        print_status "Created dedicated user: $CRACKPI_USER"
+    fi
+fi
 
 # Function to print colored output
 print_status() {

@@ -169,12 +169,22 @@ CrackPi is a distributed password cracking platform designed to run on Raspberry
 - ✅ **Security Features**: User privilege separation, restricted file system access, and firewall configuration
 - ✅ **Monitoring Integration**: Comprehensive system metrics collection and real-time performance monitoring
 
+### Advanced Features Implementation (August 13, 2025)
+- ✅ **Advanced Password Cracking**: Multiple attack modes (dictionary, brute force, mask, hybrid, rule-based, markov, prince)
+- ✅ **Universal Client**: Single script supporting enhanced and normal modes with auto-detection
+- ✅ **User Detection**: Automatic user detection and path configuration for flexible installation
+- ✅ **Multi-Hash Distribution**: Advanced algorithms for distributing hashes across multiple clients
+- ✅ **Capability Detection**: Automatic GPU, CPU, and tool detection with performance optimization
+- ✅ **Concurrent Jobs**: Support for multiple simultaneous cracking jobs per client
+- ✅ **Advanced Algorithms**: Support for MD5, SHA1, SHA256, SHA512, NTLM, bcrypt, SHA3, Blake2b, Argon2
+
 ### Current System Status
 - **Server**: Running on Flask with SQLite database, accessible at http://localhost:5000
 - **Default Login**: admin / admin123
-- **Terminal Access**: Available through web interface with real-time client management
-- **Client Communication**: Unified API with heartbeat, job distribution, and terminal command execution
-- **Database**: SQLite with automatic table creation and default user setup
+- **Universal Client**: Enhanced client with auto-capability detection and advanced cracking
+- **Terminal Access**: Full web-based terminal with real-time command execution
+- **Advanced Distribution**: Equal split, capability-based, dynamic load, and hash-based strategies
+- **Database**: SQLite with automatic fallback and production-ready configuration
 
 ## User Preferences
 

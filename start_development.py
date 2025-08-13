@@ -7,7 +7,11 @@ Forces SQLite usage and starts the server
 import os
 import sys
 
-# Force SQLite usage
+# Force SQLite usage and clear PostgreSQL environment variables
+for pg_var in ['DATABASE_URL', 'PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD', 'PGDATABASE']:
+    if pg_var in os.environ:
+        del os.environ[pg_var]
+
 os.environ["DATABASE_URL"] = "sqlite:///crackpi.db"
 os.environ["SESSION_SECRET"] = "dev-secret-key"
 
