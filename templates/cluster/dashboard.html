@@ -1,0 +1,354 @@
+{% extends "layout.html" %}
+{% block title %}Cluster Management - CrackPi{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="h3">
+                    <i data-feather="server" class="me-2"></i>
+                    Cluster Management
+                </h1>
+                <div class="btn-group" role="group">
+                    <a href="{{ url_for('cluster.cluster_nodes') }}" class="btn btn-outline-primary">
+                        <i data-feather="users" class="me-1"></i>Nodes
+                    </a>
+                    <a href="{{ url_for('cluster.cluster_health') }}" class="btn btn-outline-info">
+                        <i data-feather="activity" class="me-1"></i>Health
+                    </a>
+                    <a href="{{ url_for('cluster.failover_history') }}" class="btn btn-outline-warning">
+                        <i data-feather="shuffle" class="me-1"></i>Failover
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cluster Status Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i data-feather="server" class="text-primary" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="fw-bold">{{ cluster_info.node_count + 1 }}</div>
+                            <div class="text-muted small">Total Nodes</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i data-feather="check-circle" class="text-success" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="fw-bold">{{ cluster_info.healthy_nodes }}</div>
+                            <div class="text-muted small">Healthy Nodes</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            {% if cluster_info.leader_id == current_node_id %}
+                                <i data-feather="crown" class="text-warning" style="width: 24px; height: 24px;"></i>
+                            {% else %}
+                                <i data-feather="user" class="text-info" style="width: 24px; height: 24px;"></i>
+                            {% endif %}
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="fw-bold">
+                                {% if cluster_info.leader_id == current_node_id %}
+                                    Leader
+                                {% else %}
+                                    Follower
+                                {% endif %}
+                            </div>
+                            <div class="text-muted small">Current Role</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i data-feather="hash" class="text-secondary" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="fw-bold">{{ cluster_info.term }}</div>
+                            <div class="text-muted small">Current Term</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Node Information -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i data-feather="monitor" class="me-2"></i>
+                        Current Node Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td class="fw-bold">Node ID:</td>
+                                    <td><code>{{ current_node_id }}</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Role:</td>
+                                    <td>
+                                        {% if cluster_info.leader_id == current_node_id %}
+                                            <span class="badge bg-warning">Leader</span>
+                                        {% else %}
+                                            <span class="badge bg-info">Follower</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Term:</td>
+                                    <td>{{ cluster_info.term }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <div id="nodeMetrics">
+                                <div class="text-center">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Loading metrics...</span>
+                                    </div>
+                                    <div class="mt-2 small text-muted">Loading node metrics...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cluster Nodes Overview -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i data-feather="users" class="me-2"></i>
+                        Cluster Nodes
+                    </h5>
+                    {% if current_user.is_admin %}
+                    <button class="btn btn-outline-warning btn-sm" onclick="forceElection()">
+                        <i data-feather="shuffle" class="me-1"></i>
+                        Force Election
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div id="clusterNodes">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Loading nodes...</span>
+                            </div>
+                            <div class="mt-2 small text-muted">Loading cluster nodes...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cluster Health Chart -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i data-feather="activity" class="me-2"></i>
+                        Cluster Health Monitoring
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="clusterHealthChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Force Election Modal -->
+<div class="modal fade" id="forceElectionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Force Leader Election</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to force a new leader election?</p>
+                <p class="text-warning">
+                    <i data-feather="alert-triangle" class="me-1"></i>
+                    This will temporarily disrupt cluster operations.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="confirmForceElection()">
+                    Force Election
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let healthChart;
+
+function loadClusterData() {
+    // Load cluster metrics
+    fetch('/cluster/api/metrics')
+        .then(response => response.json())
+        .then(data => {
+            updateNodeMetrics(data.cluster_averages);
+            updateClusterNodes(data.node_metrics);
+            updateHealthChart(data);
+        })
+        .catch(error => {
+            console.error('Error loading cluster data:', error);
+        });
+}
+
+function updateNodeMetrics(metrics) {
+    const container = document.getElementById('nodeMetrics');
+    container.innerHTML = `
+        <div class="row">
+            <div class="col-4 text-center">
+                <div class="h5 mb-0">${metrics.cpu_usage}%</div>
+                <div class="small text-muted">CPU</div>
+            </div>
+            <div class="col-4 text-center">
+                <div class="h5 mb-0">${metrics.memory_usage}%</div>
+                <div class="small text-muted">Memory</div>
+            </div>
+            <div class="col-4 text-center">
+                <div class="h5 mb-0">${metrics.disk_usage}%</div>
+                <div class="small text-muted">Disk</div>
+            </div>
+        </div>
+    `;
+}
+
+function updateClusterNodes(nodes) {
+    const container = document.getElementById('clusterNodes');
+    let html = '<div class="table-responsive"><table class="table table-sm"><thead><tr>';
+    html += '<th>Node ID</th><th>Hostname</th><th>Status</th><th>CPU</th><th>Memory</th><th>Last Seen</th></tr></thead><tbody>';
+    
+    for (const [nodeId, node] of Object.entries(nodes)) {
+        const isCurrentNode = nodeId === '{{ current_node_id }}';
+        const statusClass = node.health_status === 'healthy' ? 'success' : 
+                           node.health_status === 'degraded' ? 'warning' : 'danger';
+        
+        html += `<tr ${isCurrentNode ? 'class="table-primary"' : ''}>`;
+        html += `<td><code>${nodeId}</code> ${isCurrentNode ? '<span class="badge bg-primary">Current</span>' : ''}</td>`;
+        html += `<td>${node.hostname || 'Unknown'}</td>`;
+        html += `<td><span class="badge bg-${statusClass}">${node.health_status}</span></td>`;
+        html += `<td>${node.load_metrics?.cpu_usage || 0}%</td>`;
+        html += `<td>${node.load_metrics?.memory_usage || 0}%</td>`;
+        html += `<td>${node.last_seen ? new Date(node.last_seen).toLocaleString() : 'Unknown'}</td>`;
+        html += '</tr>';
+    }
+    
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+function updateHealthChart(data) {
+    const ctx = document.getElementById('clusterHealthChart').getContext('2d');
+    
+    if (healthChart) {
+        healthChart.destroy();
+    }
+    
+    healthChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['5m ago', '4m ago', '3m ago', '2m ago', '1m ago', 'Now'],
+            datasets: [{
+                label: 'Average CPU Usage',
+                data: [0, 0, 0, 0, 0, data.cluster_averages.cpu_usage],
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }, {
+                label: 'Average Memory Usage',
+                data: [0, 0, 0, 0, 0, data.cluster_averages.memory_usage],
+                borderColor: 'rgb(255, 99, 132)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+}
+
+function forceElection() {
+    const modal = new bootstrap.Modal(document.getElementById('forceElectionModal'));
+    modal.show();
+}
+
+function confirmForceElection() {
+    fetch('/cluster/api/force-election', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Failed to force election: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error forcing election:', error);
+        alert('Failed to force election');
+    });
+    
+    const modal = bootstrap.Modal.getInstance(document.getElementById('forceElectionModal'));
+    modal.hide();
+}
+
+// Auto-refresh data
+setInterval(loadClusterData, 10000);
+loadClusterData();
+</script>
+{% endblock %}
