@@ -95,9 +95,33 @@ print_status "Creating log directories..."
 sudo mkdir -p $LOG_DIR
 sudo chown $CRACKPI_USER:$CRACKPI_USER $LOG_DIR
 
-# Update service file with server IP
-print_status "Configuring client service for server: $SERVER_IP"
-sed "s/localhost/$SERVER_IP/g" crackpi-client.service > /tmp/crackpi-client.service
+# Auto-generate systemd service file
+print_status "Generating systemd service file for server: $SERVER_IP"
+cat > /tmp/crackpi-client.service << EOF
+[Unit]
+Description=CrackPi Distributed Password Cracking Client
+After=network.target
+
+[Service]
+Type=simple
+User=$CRACKPI_USER
+WorkingDirectory=$CRACKPI_DIR
+Environment="PATH=$CRACKPI_DIR/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="CRACKPI_SERVER_URL=http://$SERVER_IP:5000"
+ExecStart=$CRACKPI_DIR/venv/bin/python3 $CRACKPI_DIR/client_server_api.py --server http://$SERVER_IP:5000
+Restart=always
+RestartSec=15
+StandardOutput=append:$LOG_DIR/crackpi-client.log
+StandardError=append:$LOG_DIR/crackpi-client-error.log
+
+# Resource limits - allow 95% CPU for cracking
+CPUQuota=95%
+MemoryLimit=4G
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 sudo mv /tmp/crackpi-client.service /etc/systemd/system/
 sudo systemctl daemon-reload
 

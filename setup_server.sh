@@ -105,9 +105,35 @@ print_status "Creating log directories..."
 sudo mkdir -p $LOG_DIR
 sudo chown $CRACKPI_USER:$CRACKPI_USER $LOG_DIR
 
-# Copy service file
-print_status "Installing systemd service..."
-sudo cp crackpi-server.service /etc/systemd/system/
+# Auto-generate systemd service file
+print_status "Generating systemd service file..."
+cat > /tmp/crackpi-server.service << EOF
+[Unit]
+Description=CrackPi Distributed Password Cracking Server
+After=network.target
+
+[Service]
+Type=simple
+User=$CRACKPI_USER
+WorkingDirectory=$CRACKPI_DIR
+Environment="PATH=$CRACKPI_DIR/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="DATABASE_URL=sqlite:///$CRACKPI_DIR/crackpi.db"
+Environment="SESSION_SECRET=\$(openssl rand -hex 32)"
+ExecStart=$CRACKPI_DIR/venv/bin/gunicorn --bind 0.0.0.0:5000 --reuse-port --reload main:app
+Restart=always
+RestartSec=10
+StandardOutput=append:$LOG_DIR/crackpi-server.log
+StandardError=append:$LOG_DIR/crackpi-server-error.log
+
+# Resource limits
+MemoryLimit=2G
+CPUQuota=200%
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo mv /tmp/crackpi-server.service /etc/systemd/system/
 sudo systemctl daemon-reload
 
 # Configure firewall
