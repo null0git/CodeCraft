@@ -1,8 +1,8 @@
 #!/bin/bash
-"""
-CrackPi Server Setup Script
-Installs and configures the CrackPi server with all dependencies
-"""
+#
+# CrackPi Server Setup Script
+# Installs and configures the CrackPi server with all dependencies
+#
 
 set -e  # Exit on any error
 

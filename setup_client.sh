@@ -1,8 +1,8 @@
 #!/bin/bash
-"""
-CrackPi Client Setup Script
-Installs and configures CrackPi client to connect to server
-"""
+#
+# CrackPi Client Setup Script
+# Installs and configures CrackPi client to connect to server
+#
 
 set -e  # Exit on any error
 
