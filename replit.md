@@ -20,7 +20,9 @@ CrackPi is a distributed password cracking platform designed to run on Raspberry
 - **Cracking Engine Integration**: Support for both John the Ripper and Hashcat password cracking tools
 
 ### Communication Protocol
-- **WebSocket-based**: Real-time bidirectional communication between server and clients
+- **HTTP REST API**: All client-server communication via standard REST endpoints
+- **Heartbeat System**: Clients send periodic heartbeats with metrics and status updates
+- **Command Queue**: Server sends commands to clients in heartbeat responses
 - **RESTful APIs**: HTTP-based APIs for web interface interactions
 - **Automatic Reconnection**: Clients automatically reconnect to server on network disruptions
 
@@ -146,6 +148,9 @@ CrackPi is a distributed password cracking platform designed to run on Raspberry
 - ✅ Dark/light theme toggle functionality
 
 ## Changelog
+- October 8, 2025: **Critical Communication Fix** - Replaced SocketIO with HTTP REST API for reliable client-server communication
+- October 8, 2025: Updated setup scripts to auto-generate service files with detected paths (no manual configuration needed)
+- October 8, 2025: Fixed package conflicts and JavaScript errors, server and clients now communicate correctly
 - August 13, 2025: Complete system integration with unified client-server communication, terminal access, and production deployment
 - August 13, 2025: Fixed database connectivity issues with SQLite fallback, implemented comprehensive service files and setup scripts  
 - August 13, 2025: Added full terminal integration with web-based client management and real-time command execution
@@ -190,7 +195,9 @@ CrackPi is a distributed password cracking platform designed to run on Raspberry
 ### Current System Status
 - **Server**: Running on Flask with SQLite database, accessible at http://localhost:5000
 - **Default Login**: admin / admin123
-- **Universal Client**: Enhanced client with auto-capability detection and advanced cracking
+- **Communication**: HTTP REST API (SocketIO removed due to package conflicts)
+- **Client**: Uses client_server_api.py with automatic server discovery and HTTP communication
+- **Setup Scripts**: Fully automated with auto-generated service files and path detection
 - **Terminal Access**: Full web-based terminal with real-time command execution
 - **Advanced Distribution**: Equal split, capability-based, dynamic load, and hash-based strategies
 - **Database**: SQLite with automatic fallback and production-ready configuration
