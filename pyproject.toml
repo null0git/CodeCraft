@@ -19,5 +19,6 @@ dependencies = [
     "psutil>=7.0.0",
     "flask-socketio>=5.5.1",
     "requests>=2.32.4",
+    "python-socketio>=5.13.0",
     "socketio>=0.2.1",
 ]

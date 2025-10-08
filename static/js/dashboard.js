@@ -73,43 +73,9 @@ class DashboardManager {
     }
     
     setupWebSocketHandlers() {
-        // Handle client updates
-        socket.on('client_update', (data) => {
-            this.updateClientStats(data);
-            this.updateConnectionStatus();
-        });
-        
-        // Handle metrics updates
-        socket.on('metrics_update', (data) => {
-            this.updateServerMetrics(data.metrics);
-        });
-        
-        // Handle job progress updates
-        socket.on('job_progress_update', (data) => {
-            this.updateJobProgress(data);
-        });
-        
-        // Handle password cracked notifications
-        socket.on('password_cracked', (data) => {
-            this.showCrackNotification(data);
-            this.updateCrackedStats();
-        });
-        
-        // Handle job failures
-        socket.on('job_failed', (data) => {
-            this.showJobFailureNotification(data);
-        });
-        
-        // Connection status
-        socket.on('connect', () => {
-            this.isConnected = true;
-            this.updateConnectionIndicator(true);
-        });
-        
-        socket.on('disconnect', () => {
-            this.isConnected = false;
-            this.updateConnectionIndicator(false);
-        });
+        // Using HTTP polling instead of WebSocket
+        this.isConnected = true;
+        this.updateConnectionIndicator(true);
     }
     
     updateClientStats(data) {
