@@ -255,7 +255,7 @@ class DashboardManager {
     startPeriodicUpdates() {
         // Update server status every 30 seconds
         setInterval(() => {
-            fetch('/dashboard/server_status')
+            fetch('/server_status')
                 .then(response => response.json())
                 .then(data => {
                     if (data.server_metrics) {

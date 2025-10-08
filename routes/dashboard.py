@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, jsonify
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from app import db
@@ -11,7 +11,7 @@ dashboard_bp = Blueprint('dashboard', __name__)
 @login_required
 def index():
     # Get client statistics
-    connected_clients = Client.query.filter_by(status='connected').count()
+    connected_clients = Client.query.filter(Client.status.in_(['online', 'connected', 'idle'])).count()
     total_clients = Client.query.count()
     working_clients = Client.query.filter_by(status='working').count()
     idle_clients = connected_clients - working_clients
@@ -52,7 +52,7 @@ def server_status():
         metrics = get_system_metrics()
         
         # Get client counts
-        connected_clients = Client.query.filter_by(status='connected').count()
+        connected_clients = Client.query.filter(Client.status.in_(['online', 'connected', 'idle'])).count()
         working_clients = Client.query.filter_by(status='working').count()
         total_clients = Client.query.count()
         idle_clients = connected_clients - working_clients
@@ -67,7 +67,7 @@ def server_status():
             Hash.cracked_at >= today
         ).count()
         
-        return {
+        return jsonify({
             'server_metrics': metrics,
             'client_stats': {
                 'connected': connected_clients,
@@ -81,6 +81,6 @@ def server_status():
             'crack_stats': {
                 'today': cracked_today
             }
-        }
+        })
     except Exception as e:
-        return {'error': str(e)}, 500
+        return jsonify({'error': str(e)}), 500

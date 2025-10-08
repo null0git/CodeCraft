@@ -17,10 +17,10 @@ def index():
     clients = Client.query.order_by(Client.last_seen.desc()).all()
     
     # Calculate statistics
-    connected_count = sum(1 for c in clients if c.status == 'connected')
+    connected_count = sum(1 for c in clients if c.status in ['online', 'connected', 'idle'])
     working_count = sum(1 for c in clients if c.status == 'working')
     idle_count = connected_count - working_count
-    disconnected_count = sum(1 for c in clients if c.status == 'disconnected')
+    disconnected_count = sum(1 for c in clients if c.status in ['offline', 'disconnected'])
     
     return render_template('clients.html',
                          clients=clients,

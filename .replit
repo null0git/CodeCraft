@@ -44,3 +44,7 @@ args = "cd /home/runner/flask_website && uv add flask-login flask-socketio pytho
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 39967
+externalPort = 3000
