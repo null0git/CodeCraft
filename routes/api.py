@@ -56,6 +56,31 @@ def register_client():
     
     return jsonify({'status': 'registered', 'client_id': client_id})
 
+@api_bp.route('/clients/disconnect', methods=['POST'])
+def client_disconnect():
+    """Client notifies server it is going offline gracefully"""
+    data = request.get_json(silent=True) or {}
+    client_id = data.get('client_id')
+    if client_id:
+        client = Client.query.filter_by(client_id=client_id).first()
+        if client:
+            client.status = 'offline'
+            client.last_seen = datetime.utcnow()
+            # Fail any running jobs for this client
+            running_jobs = Job.query.filter_by(client_id=client.id, status='running').all()
+            for job in running_jobs:
+                job.status = 'failed'
+                job.completed_at = datetime.utcnow()
+                log_entry = JobLog()
+                log_entry.job_id = job.id
+                log_entry.client_id = client.id
+                log_entry.level = 'warning'
+                log_entry.message = 'Client disconnected — job marked failed'
+                db.session.add(log_entry)
+            db.session.commit()
+            logger.info(f"Client disconnected gracefully: {client_id}")
+    return jsonify({'status': 'ok'})
+
 @api_bp.route('/clients/heartbeat', methods=['POST'])
 def client_heartbeat():
     """Receive heartbeat from client and dispatch pending jobs"""
@@ -220,27 +245,6 @@ def update_job_progress(job_id):
         job.progress_percent = (cracked_count / job.total_hashes) * 100
 
     db.session.commit()
-
-    # Send email notifications
-    try:
-        from utils.notifications import notify_job_completed, notify_job_failed
-        from models import Settings
-        def get_setting(key, default=''):
-            s = Settings.query.filter_by(key=key).first()
-            return s.value if s else default
-
-        if new_status == 'completed' and get_setting('notify_job_complete', 'true') == 'true':
-            notify_email = get_setting('notify_email') or (job.user.email if job.user else None)
-            if notify_email:
-                notify_job_completed(job, job.cracked_hashes, job.total_hashes, notify_email)
-        elif new_status == 'failed' and get_setting('notify_job_failed', 'true') == 'true':
-            notify_email = get_setting('notify_email') or (job.user.email if job.user else None)
-            err_msg = details.get('message', 'Unknown error') if details else 'Unknown error'
-            if notify_email:
-                notify_job_failed(job, err_msg, notify_email)
-    except Exception as _e:
-        logger.debug(f"Email notification error: {_e}")
-
     return jsonify({'status': 'ok'})
 
 
