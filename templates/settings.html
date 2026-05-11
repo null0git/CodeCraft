@@ -1,171 +1,372 @@
 {% extends "base.html" %}
-
-{% block title %}Settings - CrackPi{% endblock %}
+{% block title %}Settings — CrackPi{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1><i data-feather="settings"></i> Settings</h1>
-        <p class="text-muted">Configure your CrackPi system</p>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="mb-0"><i data-feather="settings"></i> Settings</h2>
+        <p class="text-muted mb-0">Configure your CrackPi platform</p>
     </div>
 </div>
 
-<div class="row">
-    <!-- System Information -->
-    <div class="col-lg-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i data-feather="info"></i> System Information</h5>
-            </div>
-            <div class="card-body">
-                <div id="systemInfo">
-                    <div class="text-center">
-                        <div class="spinner-border" role="status">
-                            <span class="visually-hidden">Loading...</span>
+<!-- Tab navigation -->
+<ul class="nav nav-tabs mb-4" id="settingsTabs">
+    <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-system">
+            <i data-feather="info"></i> System
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-hash">
+            <i data-feather="hash"></i> Hash Types
+        </button>
+    </li>
+    {% if current_user.is_admin %}
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-users">
+            <i data-feather="users"></i> Users
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-email" id="emailTabBtn">
+            <i data-feather="mail"></i> Email Notifications
+        </button>
+    </li>
+    {% endif %}
+</ul>
+
+<div class="tab-content">
+
+    <!-- ── System Tab ─────────────────────────────────────────────── -->
+    <div class="tab-pane fade show active" id="tab-system">
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <i data-feather="server"></i> System Information
+                    </div>
+                    <div class="card-body">
+                        <div id="systemInfo">
+                            <div class="text-center py-3">
+                                <div class="spinner-border" role="status"></div>
+                                <p class="mt-2 text-muted">Loading...</p>
+                            </div>
                         </div>
-                        <p class="mt-2">Loading system information...</p>
+                        <hr>
+                        <div class="d-flex justify-content-between">
+                            <button class="btn btn-primary" id="refreshSystemInfo">
+                                <i data-feather="refresh-cw"></i> Refresh
+                            </button>
+                            {% if current_user.is_admin %}
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-secondary" onclick="backupDatabase()">
+                                    <i data-feather="download"></i> Backup
+                                </button>
+                                <button class="btn btn-outline-warning" onclick="clearLogs()">
+                                    <i data-feather="trash-2"></i> Clear Logs
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
-                
-                <hr>
-                
-                <div class="d-flex justify-content-between">
-                    <button class="btn btn-primary" id="refreshSystemInfo">
-                        <i data-feather="refresh-cw"></i> Refresh
-                    </button>
-                    {% if current_user.is_admin %}
-                    <div class="btn-group">
-                        <button class="btn btn-outline-secondary" onclick="backupDatabase()">
-                            <i data-feather="download"></i> Backup
-                        </button>
-                        <button class="btn btn-outline-warning" onclick="clearLogs()">
-                            <i data-feather="trash-2"></i> Clear Logs
-                        </button>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <i data-feather="cpu"></i> Quick Stats
                     </div>
-                    {% endif %}
+                    <div class="card-body" id="quickStats">
+                        <div class="text-center py-3 text-muted">
+                            <div class="spinner-border spinner-border-sm"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Hash Types -->
-    <div class="col-lg-6">
+
+    <!-- ── Hash Types Tab ─────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-hash">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i data-feather="hash"></i> Hash Types</h5>
+                <span><i data-feather="hash"></i> Supported Hash Types</span>
                 {% if current_user.is_admin %}
                 <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addHashTypeModal">
                     <i data-feather="plus"></i> Add Type
                 </button>
                 {% endif %}
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 {% if hash_types %}
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Hashcat Mode</th>
-                                    <th>John Format</th>
-                                    {% if current_user.is_admin %}
-                                    <th>Actions</th>
-                                    {% endif %}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for hash_type in hash_types %}
-                                <tr>
-                                    <td><strong>{{ hash_type.name }}</strong></td>
-                                    <td>{{ hash_type.hashcat_mode or '-' }}</td>
-                                    <td>{{ hash_type.john_format or '-' }}</td>
-                                    {% if current_user.is_admin %}
-                                    <td>
-                                        <button class="btn btn-outline-danger btn-sm" onclick="deleteHashType({{ hash_type.id }})">
-                                            <i data-feather="trash-2"></i>
-                                        </button>
-                                    </td>
-                                    {% endif %}
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="table-responsive" style="max-height:600px;overflow-y:auto">
+                    <table class="table table-sm mb-0">
+                        <thead class="sticky-top">
+                            <tr>
+                                <th>Name</th>
+                                <th>Hashcat Mode</th>
+                                <th>John Format</th>
+                                {% if current_user.is_admin %}<th></th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ht in hash_types %}
+                            <tr>
+                                <td><strong>{{ ht.name }}</strong></td>
+                                <td>{{ ht.hashcat_mode or '—' }}</td>
+                                <td><code>{{ ht.john_format or '—' }}</code></td>
+                                {% if current_user.is_admin %}
+                                <td>
+                                    <button class="btn btn-outline-danger btn-sm py-0" onclick="deleteHashType({{ ht.id }})">
+                                        <i data-feather="trash-2"></i>
+                                    </button>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
                 {% else %}
-                    <div class="text-center py-3">
-                        <i data-feather="hash" width="32" height="32" class="text-muted"></i>
-                        <p class="text-muted mt-2">No custom hash types configured</p>
-                    </div>
+                <div class="text-center py-5 text-muted">
+                    <i data-feather="hash" width="40" height="40"></i>
+                    <p class="mt-2">No hash types configured. They are seeded on first run.</p>
+                </div>
                 {% endif %}
             </div>
         </div>
     </div>
-</div>
 
-{% if current_user.is_admin %}
-<div class="row mt-4">
-    <!-- User Management -->
-    <div class="col-12">
+    <!-- ── Users Tab ──────────────────────────────────────────────── -->
+    {% if current_user.is_admin %}
+    <div class="tab-pane fade" id="tab-users">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i data-feather="users"></i> User Management</h5>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                <span><i data-feather="users"></i> User Management</span>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
                     <i data-feather="user-plus"></i> Add User
                 </button>
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 {% if users %}
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Username</th>
-                                    <th>Email</th>
-                                    <th>Role</th>
-                                    <th>Created</th>
-                                    <th>Last Login</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for user in users %}
-                                <tr>
-                                    <td><strong>{{ user.username }}</strong></td>
-                                    <td>{{ user.email }}</td>
-                                    <td>
-                                        {% if user.is_admin %}
-                                            <span class="badge bg-danger">Admin</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">User</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else '-' }}</td>
-                                    <td>{{ user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else 'Never' }}</td>
-                                    <td>
-                                        {% if user.id != current_user.id %}
-                                        <button class="btn btn-outline-danger btn-sm" onclick="deleteUser({{ user.id }}, '{{ user.username }}')">
-                                            <i data-feather="trash-2"></i> Delete
-                                        </button>
-                                        {% else %}
-                                        <span class="text-muted">Current User</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Created</th>
+                                <th>Last Login</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for u in users %}
+                            <tr>
+                                <td><strong>{{ u.username }}</strong></td>
+                                <td>{{ u.email }}</td>
+                                <td>
+                                    {% if u.is_admin %}
+                                        <span class="badge bg-danger">Admin</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">User</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
+                                <td>{{ u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else 'Never' }}</td>
+                                <td>
+                                    {% if u.id != current_user.id %}
+                                    <button class="btn btn-outline-danger btn-sm py-0"
+                                            onclick="deleteUser({{ u.id }}, '{{ u.username }}')">
+                                        <i data-feather="trash-2"></i> Delete
+                                    </button>
+                                    {% else %}
+                                    <span class="text-muted small">You</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
                 {% else %}
-                    <div class="text-center py-3">
-                        <i data-feather="users" width="32" height="32" class="text-muted"></i>
-                        <p class="text-muted mt-2">No users found</p>
-                    </div>
+                <div class="text-center py-5 text-muted">
+                    <i data-feather="users" width="40" height="40"></i>
+                    <p class="mt-2">No users found</p>
+                </div>
                 {% endif %}
             </div>
         </div>
     </div>
-</div>
 
+    <!-- ── Email Notifications Tab ────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-email">
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card">
+                    <div class="card-header">
+                        <i data-feather="mail"></i> SMTP Configuration
+                    </div>
+                    <div class="card-body">
+                        <form action="{{ url_for('settings.save_smtp') }}" method="POST">
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label class="form-label">SMTP Host</label>
+                                    <input type="text" class="form-control" name="smtp_host"
+                                           value="{{ smtp.host }}" placeholder="smtp.gmail.com">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Port</label>
+                                    <input type="number" class="form-control" name="smtp_port"
+                                           value="{{ smtp.port }}" placeholder="587">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Username</label>
+                                    <input type="text" class="form-control" name="smtp_username"
+                                           value="{{ smtp.username }}" placeholder="user@example.com"
+                                           autocomplete="username">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Password</label>
+                                    <input type="password" class="form-control" name="smtp_password"
+                                           placeholder="leave blank to keep existing"
+                                           autocomplete="current-password">
+                                    <div class="form-text">Leave blank to keep the current password.</div>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label">From Address</label>
+                                    <input type="email" class="form-control" name="smtp_from"
+                                           value="{{ smtp.from }}" placeholder="crackpi@example.com">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">TLS</label>
+                                    <select class="form-select" name="smtp_tls">
+                                        <option value="true" {% if smtp.tls == 'true' %}selected{% endif %}>Enable STARTTLS</option>
+                                        <option value="false" {% if smtp.tls == 'false' %}selected{% endif %}>Disabled</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <hr class="my-1">
+                                    <label class="form-label">Notification Recipient Email</label>
+                                    <input type="email" class="form-control" name="notify_email"
+                                           value="{{ smtp.notify_email }}" placeholder="alerts@example.com">
+                                    <div class="form-text">Where to send all notification emails. Defaults to the job owner's email.</div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Trigger notifications for:</label>
+                                    <div class="row g-2">
+                                        <div class="col-sm-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="notify_job_complete"
+                                                       value="true" id="nc_complete"
+                                                       {% if smtp.notify_job_complete == 'true' %}checked{% endif %}>
+                                                <label class="form-check-label" for="nc_complete">
+                                                    <i data-feather="check-circle" width="14" height="14" class="text-success"></i>
+                                                    Job completed
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="notify_job_failed"
+                                                       value="true" id="nc_failed"
+                                                       {% if smtp.notify_job_failed == 'true' %}checked{% endif %}>
+                                                <label class="form-check-label" for="nc_failed">
+                                                    <i data-feather="x-circle" width="14" height="14" class="text-danger"></i>
+                                                    Job failed
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="notify_client_offline"
+                                                       value="true" id="nc_offline"
+                                                       {% if smtp.notify_client_offline == 'true' %}checked{% endif %}>
+                                                <label class="form-check-label" for="nc_offline">
+                                                    <i data-feather="wifi-off" width="14" height="14" class="text-warning"></i>
+                                                    Client went offline
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="notify_client_online"
+                                                       value="true" id="nc_online"
+                                                       {% if smtp.notify_client_online == 'true' %}checked{% endif %}>
+                                                <label class="form-check-label" for="nc_online">
+                                                    <i data-feather="wifi" width="14" height="14" class="text-success"></i>
+                                                    Client came online
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 d-flex gap-2 pt-2">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i data-feather="save"></i> Save Settings
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <i data-feather="send"></i> Send Test Email
+                    </div>
+                    <div class="card-body">
+                        <p class="small text-muted mb-3">
+                            Sends a test email to verify your SMTP settings are correct. Save settings first.
+                        </p>
+                        <div class="input-group">
+                            <input type="email" class="form-control" id="testEmailAddr"
+                                   placeholder="{{ current_user.email or 'recipient@example.com' }}">
+                            <button class="btn btn-outline-info" onclick="sendTestEmail()">
+                                <i data-feather="send"></i> Send Test
+                            </button>
+                        </div>
+                        <div id="testEmailResult" class="mt-2"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <i data-feather="info"></i> SMTP Setup Guide
+                    </div>
+                    <div class="card-body small">
+                        <p class="fw-bold mb-1">Gmail</p>
+                        <ul class="mb-3">
+                            <li>Host: <code>smtp.gmail.com</code> — Port: <code>587</code></li>
+                            <li>Use an <strong>App Password</strong> (not your account password)</li>
+                            <li>Enable 2FA → Google Account → Security → App passwords</li>
+                        </ul>
+                        <p class="fw-bold mb-1">Outlook / Office 365</p>
+                        <ul class="mb-3">
+                            <li>Host: <code>smtp-mail.outlook.com</code> — Port: <code>587</code></li>
+                        </ul>
+                        <p class="fw-bold mb-1">SendGrid</p>
+                        <ul class="mb-0">
+                            <li>Host: <code>smtp.sendgrid.net</code> — Port: <code>587</code></li>
+                            <li>Username: <code>apikey</code> — Password: your API key</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div><!-- end tab-content -->
+
+<!-- ── Modals ──────────────────────────────────────────────────────── -->
+{% if current_user.is_admin %}
 <!-- Add User Modal -->
 <div class="modal fade" id="addUserModal" tabindex="-1">
     <div class="modal-dialog">
@@ -177,18 +378,18 @@
             <form action="{{ url_for('auth.create_user') }}" method="POST">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" required>
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" name="username" required>
                     </div>
                     <div class="mb-3">
-                        <label for="email" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="email" name="email" required>
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email" required>
                     </div>
                     <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" name="password" required>
                     </div>
-                    <div class="mb-3 form-check">
+                    <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="is_admin" name="is_admin">
                         <label class="form-check-label" for="is_admin">Admin privileges</label>
                     </div>
@@ -213,20 +414,20 @@
             <form id="addHashTypeForm">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="hash_name" class="form-label">Hash Type Name</label>
-                        <input type="text" class="form-control" id="hash_name" name="name" required>
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control" name="name" required placeholder="sha256">
                     </div>
                     <div class="mb-3">
-                        <label for="hashcat_mode" class="form-label">Hashcat Mode</label>
-                        <input type="number" class="form-control" id="hashcat_mode" name="hashcat_mode">
+                        <label class="form-label">Hashcat Mode</label>
+                        <input type="number" class="form-control" name="hashcat_mode" placeholder="1400">
                     </div>
                     <div class="mb-3">
-                        <label for="john_format" class="form-label">John Format</label>
-                        <input type="text" class="form-control" id="john_format" name="john_format">
+                        <label class="form-label">John Format</label>
+                        <input type="text" class="form-control" name="john_format" placeholder="raw-sha256">
                     </div>
                     <div class="mb-3">
-                        <label for="hash_description" class="form-label">Description</label>
-                        <textarea class="form-control" id="hash_description" name="description" rows="2"></textarea>
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="description" rows="2"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -242,174 +443,139 @@
 
 {% block scripts %}
 <script>
-// Load system information
+// Auto-activate email tab if redirected with #email
+if (window.location.hash === '#email') {
+    const emailTab = document.getElementById('emailTabBtn');
+    if (emailTab) bootstrap.Tab.getOrCreateInstance(emailTab).show();
+}
+
+// ── System Info ────────────────────────────────────────────────────
 function loadSystemInfo() {
     fetch('/settings/system_info')
-        .then(response => response.json())
+        .then(r => r.json())
         .then(data => {
             if (data.error) {
-                document.getElementById('systemInfo').innerHTML = `
-                    <div class="alert alert-danger">
-                        <i data-feather="alert-circle"></i> Error loading system information: ${data.error}
-                    </div>
-                `;
-            } else {
-                document.getElementById('systemInfo').innerHTML = `
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Server Information</h6>
-                            <ul class="list-unstyled">
-                                <li><strong>Hostname:</strong> ${data.system_info.hostname}</li>
-                                <li><strong>OS:</strong> ${data.system_info.os_info}</li>
-                                <li><strong>CPU:</strong> ${data.system_info.cpu_model}</li>
-                                <li><strong>Cores:</strong> ${data.system_info.cpu_cores}</li>
-                                <li><strong>RAM:</strong> ${(data.system_info.ram_total / 1024 / 1024 / 1024).toFixed(2)} GB</li>
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>Current Metrics</h6>
-                            <ul class="list-unstyled">
-                                <li><strong>CPU Usage:</strong> ${data.system_metrics.cpu_usage.toFixed(1)}%</li>
-                                <li><strong>RAM Usage:</strong> ${data.system_metrics.ram_usage.toFixed(1)}%</li>
-                                <li><strong>Disk Usage:</strong> ${data.system_metrics.disk_usage.toFixed(1)}%</li>
-                                <li><strong>Load Average:</strong> ${data.system_metrics.load_avg_1min ? data.system_metrics.load_avg_1min.toFixed(2) : 'N/A'}</li>
-                            </ul>
-                        </div>
-                    </div>
-                    <hr>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Cracking Tools</h6>
-                            <ul class="list-unstyled">
-                                <li><i data-feather="${data.cracking_tools.hashcat ? 'check' : 'x'}" class="text-${data.cracking_tools.hashcat ? 'success' : 'danger'}"></i> Hashcat</li>
-                                <li><i data-feather="${data.cracking_tools.john ? 'check' : 'x'}" class="text-${data.cracking_tools.john ? 'success' : 'danger'}"></i> John the Ripper</li>
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>Database Statistics</h6>
-                            <ul class="list-unstyled">
-                                <li><strong>Total Clients:</strong> ${data.database_stats.total_clients}</li>
-                                <li><strong>Total Jobs:</strong> ${data.database_stats.total_jobs}</li>
-                                <li><strong>Total Hashes:</strong> ${data.database_stats.total_hashes}</li>
-                                <li><strong>Cracked:</strong> ${data.database_stats.cracked_hashes}</li>
-                            </ul>
-                        </div>
-                    </div>
-                `;
+                document.getElementById('systemInfo').innerHTML =
+                    `<div class="alert alert-danger">Error: ${data.error}</div>`;
+                return;
             }
-            feather.replace();
-        })
-        .catch(error => {
+            const si = data.system_info;
+            const sm = data.system_metrics;
+            const ct = data.cracking_tools;
+            const db = data.database_stats;
+
             document.getElementById('systemInfo').innerHTML = `
-                <div class="alert alert-danger">
-                    <i data-feather="alert-circle"></i> Failed to load system information
+            <div class="row g-3">
+              <div class="col-md-6">
+                <h6 class="text-muted mb-2">Server</h6>
+                <table class="table table-sm mb-0">
+                  <tr><th>Hostname</th><td>${si.hostname}</td></tr>
+                  <tr><th>OS</th><td>${si.os_info}</td></tr>
+                  <tr><th>CPU</th><td>${si.cpu_model}</td></tr>
+                  <tr><th>Cores</th><td>${si.cpu_cores}</td></tr>
+                  <tr><th>RAM</th><td>${(si.ram_total/1024/1024/1024).toFixed(1)} GB</td></tr>
+                </table>
+              </div>
+              <div class="col-md-6">
+                <h6 class="text-muted mb-2">Live Metrics</h6>
+                <div class="mb-2">
+                  <div class="d-flex justify-content-between small"><span>CPU</span><span>${sm.cpu_usage.toFixed(1)}%</span></div>
+                  <div class="progress progress-sm"><div class="progress-bar ${sm.cpu_usage>80?'bg-danger':sm.cpu_usage>50?'bg-warning':'bg-primary'}"
+                       style="width:${sm.cpu_usage}%"></div></div>
                 </div>
+                <div class="mb-2">
+                  <div class="d-flex justify-content-between small"><span>RAM</span><span>${sm.ram_usage.toFixed(1)}%</span></div>
+                  <div class="progress progress-sm"><div class="progress-bar ${sm.ram_usage>80?'bg-danger':sm.ram_usage>50?'bg-warning':'bg-success'}"
+                       style="width:${sm.ram_usage}%"></div></div>
+                </div>
+                <div class="mb-2">
+                  <div class="d-flex justify-content-between small"><span>Disk</span><span>${sm.disk_usage.toFixed(1)}%</span></div>
+                  <div class="progress progress-sm"><div class="progress-bar ${sm.disk_usage>85?'bg-danger':'bg-info'}"
+                       style="width:${sm.disk_usage}%"></div></div>
+                </div>
+                <h6 class="text-muted mt-3 mb-2">Tools</h6>
+                <div class="d-flex gap-3">
+                  <span class="badge ${ct.hashcat?'bg-success':'bg-secondary'}">Hashcat ${ct.hashcat?'✓':'✗'}</span>
+                  <span class="badge ${ct.john?'bg-success':'bg-secondary'}">John ${ct.john?'✓':'✗'}</span>
+                </div>
+              </div>
+            </div>
             `;
-            feather.replace();
+
+            document.getElementById('quickStats').innerHTML = `
+            <div class="row text-center g-3">
+              <div class="col-6"><div class="fs-3 fw-bold">${db.total_clients}</div><div class="text-muted small">Clients</div></div>
+              <div class="col-6"><div class="fs-3 fw-bold">${db.total_jobs}</div><div class="text-muted small">Jobs</div></div>
+              <div class="col-6"><div class="fs-3 fw-bold">${db.total_hashes.toLocaleString()}</div><div class="text-muted small">Hashes</div></div>
+              <div class="col-6"><div class="fs-3 fw-bold text-success">${db.cracked_hashes.toLocaleString()}</div><div class="text-muted small">Cracked</div></div>
+            </div>
+            `;
+            if (typeof feather !== 'undefined') feather.replace();
+        })
+        .catch(() => {
+            document.getElementById('systemInfo').innerHTML =
+                '<div class="alert alert-danger">Failed to load system information.</div>';
         });
 }
 
-// Refresh system info
-document.getElementById('refreshSystemInfo').addEventListener('click', loadSystemInfo);
-
-// Load system info on page load
+document.getElementById('refreshSystemInfo')?.addEventListener('click', loadSystemInfo);
 loadSystemInfo();
 
-// Delete user function
+// ── Email test ─────────────────────────────────────────────────────
+function sendTestEmail() {
+    const addr = document.getElementById('testEmailAddr').value || '{{ current_user.email }}';
+    const res  = document.getElementById('testEmailResult');
+    res.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Sending...';
+
+    const fd = new FormData();
+    fd.append('test_email_addr', addr);
+
+    fetch('/settings/test_email', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                res.innerHTML = `<div class="alert alert-success py-2 mt-1">${d.message}</div>`;
+            } else {
+                res.innerHTML = `<div class="alert alert-danger py-2 mt-1">${d.error}</div>`;
+            }
+        })
+        .catch(e => { res.innerHTML = `<div class="alert alert-danger py-2 mt-1">${e.message}</div>`; });
+}
+
+// ── Delete user ────────────────────────────────────────────────────
 function deleteUser(userId, username) {
-    if (confirm(`Are you sure you want to delete user "${username}"?`)) {
-        fetch(`/auth/delete_user/${userId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Error deleting user: ' + data.error);
-            }
-        })
-        .catch(error => {
-            alert('Error deleting user: ' + error);
-        });
-    }
+    if (!confirm(`Delete user "${username}"?`)) return;
+    fetch(`/auth/delete_user/${userId}`, { method: 'POST', headers: {'Content-Type':'application/json'} })
+        .then(r => r.json())
+        .then(d => { if (d.success) location.reload(); else alert(d.error); });
 }
 
-// Delete hash type function
-function deleteHashType(hashTypeId) {
-    if (confirm('Are you sure you want to delete this hash type?')) {
-        fetch(`/settings/delete_hash_type/${hashTypeId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Error deleting hash type: ' + data.error);
-            }
-        })
-        .catch(error => {
-            alert('Error deleting hash type: ' + error);
-        });
-    }
+// ── Delete hash type ───────────────────────────────────────────────
+function deleteHashType(id) {
+    if (!confirm('Delete this hash type?')) return;
+    fetch(`/settings/delete_hash_type/${id}`, { method: 'POST', headers: {'Content-Type':'application/json'} })
+        .then(r => r.json())
+        .then(d => { if (d.success) location.reload(); else alert(d.error); });
 }
 
-// Add hash type form submission
-document.getElementById('addHashTypeForm').addEventListener('submit', function(e) {
+// ── Add hash type form ─────────────────────────────────────────────
+document.getElementById('addHashTypeForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
-    
-    const formData = new FormData(this);
-    
-    fetch('/settings/create_hash_type', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Error creating hash type: ' + data.error);
-        }
-    })
-    .catch(error => {
-        alert('Error creating hash type: ' + error);
-    });
+    fetch('/settings/create_hash_type', { method: 'POST', body: new FormData(this) })
+        .then(r => r.json())
+        .then(d => { if (d.success) location.reload(); else alert(d.error); });
 });
 
-// Backup database function
-function backupDatabase() {
-    window.location.href = '/settings/backup_database';
+// ── Backup / clear logs ────────────────────────────────────────────
+function backupDatabase() { window.location.href = '/settings/backup_database'; }
+
+function clearLogs() {
+    if (!confirm('Clear old log entries?')) return;
+    fetch('/settings/clear_logs', { method: 'POST', headers: {'Content-Type':'application/json'} })
+        .then(r => r.json())
+        .then(d => { if (d.success) alert(`Cleared ${d.cleared_count} log entries.`); else alert(d.error); });
 }
 
-// Clear logs function
-function clearLogs() {
-    if (confirm('Are you sure you want to clear old log entries?')) {
-        fetch('/settings/clear_logs', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(`Cleared ${data.cleared_count} old log entries.`);
-            } else {
-                alert('Error clearing logs: ' + data.error);
-            }
-        })
-        .catch(error => {
-            alert('Error clearing logs: ' + error);
-        });
-    }
-}
+if (typeof feather !== 'undefined') feather.replace();
 </script>
 {% endblock %}

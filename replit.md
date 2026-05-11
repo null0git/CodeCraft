@@ -147,6 +147,21 @@ CrackPi is a distributed password cracking platform designed to run on Raspberry
 - ✅ Advanced progress monitoring with visual indicators
 - ✅ Dark/light theme toggle functionality
 
+## Latest Additions (May 2026 — Session 2)
+
+### All New Features
+- ✅ **Hash Analysis Dashboard** — `/analysis` — cluster-wide crack rates, daily trends chart, per-job entropy analysis, charset detection, password complexity breakdown, and brute-force time estimator
+- ✅ **Wordlist & Rules Manager** — `/wordlists` — upload/preview/delete custom wordlists and hashcat rule files; drag-and-drop upload; create wordlists from text input; supports both system and user-uploaded files
+- ✅ **PDF Report Export** — `GET /jobs/export_pdf/<id>` — styled A4 report using reportlab with summary table and cracked password table
+- ✅ **Email Notifications** — SMTP via smtplib; notifications for job complete, job failed, client offline, client online; configurable in Settings → Email tab; test email button
+- ✅ **Dynamic Theming** — Dark/light toggle persisted to localStorage; CSS custom properties for theme-aware styling; navbar, cards, and all components update instantly
+- ✅ **Interactive Tutorial** — Shepherd.js guided tour (8 steps); auto-starts on first visit; re-triggerable via ? button in navbar
+- ✅ **Terminal Fixed** — client_server_api.py now correctly polls `/terminal/api/commands/<client_id>` every 2s in a background thread and POSTs responses to `/terminal/api/response`; improved terminal UI with macOS-style titlebar, quick commands toolbar, history navigation (↑/↓), Ctrl+C abort, and offline detection
+- ✅ **Settings Email Tab** — SMTP config form (host, port, user, password, TLS, from address) with per-event notification toggles and test email; password update only on change
+- ✅ **view_job.html fixed** — Removed all broken `socket.on(...)` references; replaced with HTTP polling; added PDF Report button and Analysis link
+- ✅ **Analysis blueprints registered** — `analysis_bp`, `wordlists_bp` registered in app.py
+- ✅ **Nav updated** — Added Tools dropdown (Hash Analysis, Wordlists & Rules), theme toggle, tutorial trigger
+
 ## Latest Fixes (May 2026)
 
 ### Comprehensive Bug Fixes & Feature Upgrades

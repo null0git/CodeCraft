@@ -153,6 +153,20 @@ def timeout_check():
         c.status = 'offline'
         timed_out.append(c.client_id)
 
+        # Email notification for client going offline
+        try:
+            from utils.notifications import notify_client_offline
+            from models import Settings
+            def _gs(key, d=''):
+                s = Settings.query.filter_by(key=key).first()
+                return s.value if s else d
+            if _gs('notify_client_offline', 'false') == 'true':
+                notify_email = _gs('notify_email')
+                if notify_email:
+                    notify_client_offline(c, notify_email)
+        except Exception:
+            pass
+
     db.session.commit()
     return jsonify({'timed_out': timed_out, 'count': len(timed_out)})
 
@@ -206,6 +220,27 @@ def update_job_progress(job_id):
         job.progress_percent = (cracked_count / job.total_hashes) * 100
 
     db.session.commit()
+
+    # Send email notifications
+    try:
+        from utils.notifications import notify_job_completed, notify_job_failed
+        from models import Settings
+        def get_setting(key, default=''):
+            s = Settings.query.filter_by(key=key).first()
+            return s.value if s else default
+
+        if new_status == 'completed' and get_setting('notify_job_complete', 'true') == 'true':
+            notify_email = get_setting('notify_email') or (job.user.email if job.user else None)
+            if notify_email:
+                notify_job_completed(job, job.cracked_hashes, job.total_hashes, notify_email)
+        elif new_status == 'failed' and get_setting('notify_job_failed', 'true') == 'true':
+            notify_email = get_setting('notify_email') or (job.user.email if job.user else None)
+            err_msg = details.get('message', 'Unknown error') if details else 'Unknown error'
+            if notify_email:
+                notify_job_failed(job, err_msg, notify_email)
+    except Exception as _e:
+        logger.debug(f"Email notification error: {_e}")
+
     return jsonify({'status': 'ok'})
 
 

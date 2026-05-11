@@ -10,28 +10,56 @@ logger = logging.getLogger(__name__)
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 
+
+def get_setting(key, default=''):
+    s = Settings.query.filter_by(key=key).first()
+    return s.value if s else default
+
+
+def set_setting(key, value, description=''):
+    s = Settings.query.filter_by(key=key).first()
+    if not s:
+        s = Settings(key=key)
+        db.session.add(s)
+    s.value = value
+    if description:
+        s.description = description
+    db.session.commit()
+
+
 @settings_bp.route('/')
 @login_required
 def index():
-    # Get all users (admin only)
     users = []
     if current_user.is_admin:
         users = User.query.order_by(User.created_at.desc()).all()
-    
-    # Get system settings
+
     settings = {}
-    setting_records = Settings.query.all()
-    for setting in setting_records:
-        settings[setting.key] = setting.value
-    
-    # Get hash types
+    for s in Settings.query.all():
+        settings[s.key] = s.value
+
     hash_types = HashType.query.all()
-    
+
+    # Load SMTP settings for the email tab
+    smtp = {
+        'host': get_setting('smtp_host'),
+        'port': get_setting('smtp_port', '587'),
+        'username': get_setting('smtp_username'),
+        'from': get_setting('smtp_from'),
+        'tls': get_setting('smtp_tls', 'true'),
+        'notify_job_complete': get_setting('notify_job_complete', 'true'),
+        'notify_job_failed': get_setting('notify_job_failed', 'true'),
+        'notify_client_offline': get_setting('notify_client_offline', 'false'),
+        'notify_client_online': get_setting('notify_client_online', 'false'),
+        'notify_email': get_setting('notify_email'),
+    }
+
     return render_template('settings.html',
-                         users=users,
-                         settings=settings,
-                         hash_types=hash_types,
-                         available_hash_types=Config.HASH_TYPES)
+                           users=users,
+                           settings=settings,
+                           hash_types=hash_types,
+                           available_hash_types=Config.HASH_TYPES,
+                           smtp=smtp)
 
 @settings_bp.route('/update_setting', methods=['POST'])
 @login_required
@@ -172,6 +200,52 @@ def backup_database():
     
     flash('Database backup functionality not yet implemented.', 'info')
     return redirect(url_for('settings.index'))
+
+@settings_bp.route('/save_smtp', methods=['POST'])
+@login_required
+def save_smtp():
+    if not current_user.is_admin:
+        return jsonify({'error': 'Admin required'}), 403
+    fields = {
+        'smtp_host': ('SMTP Host', request.form.get('smtp_host', '')),
+        'smtp_port': ('SMTP Port', request.form.get('smtp_port', '587')),
+        'smtp_username': ('SMTP Username', request.form.get('smtp_username', '')),
+        'smtp_from': ('From Address', request.form.get('smtp_from', '')),
+        'smtp_tls': ('Use TLS', request.form.get('smtp_tls', 'true')),
+        'notify_job_complete': ('Notify on job complete', request.form.get('notify_job_complete', 'false')),
+        'notify_job_failed': ('Notify on job failed', request.form.get('notify_job_failed', 'false')),
+        'notify_client_offline': ('Notify on client offline', request.form.get('notify_client_offline', 'false')),
+        'notify_client_online': ('Notify on client online', request.form.get('notify_client_online', 'false')),
+        'notify_email': ('Notification email', request.form.get('notify_email', '')),
+    }
+    # Password only updated if provided
+    smtp_password = request.form.get('smtp_password', '')
+    if smtp_password:
+        set_setting('smtp_password', smtp_password, 'SMTP Password')
+
+    for key, (desc, val) in fields.items():
+        set_setting(key, val, desc)
+
+    flash('Email notification settings saved.', 'success')
+    return redirect(url_for('settings.index') + '#email')
+
+
+@settings_bp.route('/test_email', methods=['POST'])
+@login_required
+def test_email():
+    if not current_user.is_admin:
+        return jsonify({'error': 'Admin required'}), 403
+    to_addr = request.form.get('test_email_addr') or current_user.email
+    try:
+        from utils.notifications import send_test_email
+        success, msg = send_test_email(to_addr)
+        if success:
+            return jsonify({'success': True, 'message': f'Test email sent to {to_addr}'})
+        else:
+            return jsonify({'error': msg}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @settings_bp.route('/clear_logs', methods=['POST'])
 @login_required

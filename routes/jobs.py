@@ -11,6 +11,17 @@ from utils.hash_utils import identify_hash_type, detect_hash_types_from_file
 from config import Config
 import logging
 
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch, cm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 jobs_bp = Blueprint('jobs', __name__, url_prefix='/jobs')
@@ -262,6 +273,144 @@ def download_results(job_id):
         as_attachment=True,
         download_name=filename
     )
+
+@jobs_bp.route('/export_pdf/<int:job_id>')
+@login_required
+def export_pdf(job_id):
+    if current_user.is_admin:
+        job = Job.query.get_or_404(job_id)
+    else:
+        job = Job.query.filter_by(id=job_id, user_id=current_user.id).first_or_404()
+
+    cracked_hashes = Hash.query.filter_by(job_id=job_id, is_cracked=True).order_by(Hash.cracked_at).all()
+
+    if not REPORTLAB_AVAILABLE:
+        flash('PDF generation requires reportlab. Install it with: pip install reportlab', 'error')
+        return redirect(url_for('jobs.view', job_id=job_id))
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+                            rightMargin=1.5*cm, leftMargin=1.5*cm,
+                            topMargin=2*cm, bottomMargin=2*cm)
+    styles = getSampleStyleSheet()
+
+    accent = colors.HexColor('#1a73e8')
+    dark_bg = colors.HexColor('#1e2130')
+    light_row = colors.HexColor('#f5f7fa')
+    success_color = colors.HexColor('#1b8a3e')
+    warn_color = colors.HexColor('#c0392b')
+
+    title_style = ParagraphStyle('Title', parent=styles['Title'],
+                                  fontSize=22, textColor=accent, spaceAfter=6,
+                                  fontName='Helvetica-Bold')
+    sub_style = ParagraphStyle('Sub', parent=styles['Normal'],
+                                fontSize=10, textColor=colors.grey, spaceAfter=12)
+    section_style = ParagraphStyle('Section', parent=styles['Heading2'],
+                                    fontSize=13, textColor=accent, spaceBefore=14, spaceAfter=6,
+                                    fontName='Helvetica-Bold')
+    body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=10, spaceAfter=4)
+    mono_style = ParagraphStyle('Mono', parent=styles['Normal'], fontSize=8,
+                                 fontName='Courier', spaceAfter=2)
+
+    crack_rate = round((job.cracked_hashes / job.total_hashes * 100), 1) if job.total_hashes > 0 else 0
+    duration_str = 'N/A'
+    if job.started_at and job.completed_at:
+        secs = int((job.completed_at - job.started_at).total_seconds())
+        if secs < 60:
+            duration_str = f"{secs}s"
+        elif secs < 3600:
+            duration_str = f"{secs//60}m {secs%60}s"
+        else:
+            duration_str = f"{secs//3600}h {(secs%3600)//60}m"
+
+    story = []
+    story.append(Paragraph("CrackPi — Job Report", title_style))
+    story.append(Paragraph(f"Generated {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}", sub_style))
+    story.append(HRFlowable(width='100%', thickness=1, color=accent, spaceAfter=14))
+
+    # Summary table
+    story.append(Paragraph("Job Summary", section_style))
+    summary_data = [
+        ['Field', 'Value'],
+        ['Job Name', job.name],
+        ['Hash Type', job.hash_type.name if job.hash_type else 'Unknown'],
+        ['Attack Mode', job.attack_mode or 'N/A'],
+        ['Status', job.status.upper()],
+        ['Total Hashes', f"{job.total_hashes:,}"],
+        ['Cracked', f"{job.cracked_hashes:,} ({crack_rate}%)"],
+        ['Priority', str(job.priority)],
+        ['Created', job.created_at.strftime('%Y-%m-%d %H:%M') if job.created_at else 'N/A'],
+        ['Started', job.started_at.strftime('%Y-%m-%d %H:%M') if job.started_at else 'N/A'],
+        ['Completed', job.completed_at.strftime('%Y-%m-%d %H:%M') if job.completed_at else 'N/A'],
+        ['Duration', duration_str],
+    ]
+    if job.assigned_client:
+        summary_data.append(['Client', job.assigned_client.hostname or job.assigned_client.client_id[:12]])
+
+    sum_table = Table(summary_data, colWidths=[5*cm, 12*cm])
+    sum_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), accent),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, light_row]),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d7de')),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    story.append(sum_table)
+    story.append(Spacer(1, 0.4*cm))
+
+    # Cracked passwords table
+    if cracked_hashes:
+        story.append(Paragraph(f"Cracked Passwords ({len(cracked_hashes):,})", section_style))
+        pw_data = [['#', 'Username', 'Hash (truncated)', 'Password', 'Cracked At']]
+        for i, h in enumerate(cracked_hashes, 1):
+            pw_data.append([
+                str(i),
+                h.username or '',
+                (h.hash_value[:28] + '...') if len(h.hash_value) > 31 else h.hash_value,
+                h.cracked_password or '',
+                h.cracked_at.strftime('%Y-%m-%d %H:%M') if h.cracked_at else '',
+            ])
+        pw_table = Table(pw_data, colWidths=[1*cm, 3.5*cm, 5.5*cm, 4*cm, 3.5*cm])
+        pw_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), accent),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Courier'),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, light_row]),
+            ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#d0d7de')),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('TEXTCOLOR', (3, 1), (3, -1), success_color),
+        ]))
+        story.append(pw_table)
+    else:
+        story.append(Paragraph("No passwords cracked.", body_style))
+
+    story.append(Spacer(1, 0.5*cm))
+    story.append(HRFlowable(width='100%', thickness=0.5, color=colors.grey))
+    story.append(Paragraph(
+        f"CrackPi Report — {job.name} — {datetime.utcnow().strftime('%Y-%m-%d')}",
+        ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.grey,
+                        alignment=TA_CENTER, spaceBefore=6)
+    ))
+
+    doc.build(story)
+    buf.seek(0)
+    filename = f"crackpi_{job.name.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+    return send_file(buf, mimetype='application/pdf', as_attachment=True, download_name=filename)
+
 
 def allowed_file(filename):
     return '.' in filename and \

@@ -1,316 +1,463 @@
-/* Custom styles for CrackPi */
+/* ═══════════════════════════════════════════════════════════════════
+   CrackPi Custom CSS
+   Supports both dark and light themes via CSS variables and
+   Bootstrap data-bs-theme attribute.
+   ═══════════════════════════════════════════════════════════════════ */
 
-/* Progress bars */
-.progress-sm {
-    height: 8px;
+/* ── CSS Custom Properties ────────────────────────────────────────── */
+:root {
+  --crackpi-accent:       #1a73e8;
+  --crackpi-accent-glow:  rgba(26, 115, 232, 0.25);
+  --crackpi-success:      #198754;
+  --crackpi-warn:         #ffc107;
+  --crackpi-danger:       #dc3545;
+  --crackpi-radius:       10px;
+  --crackpi-radius-lg:    16px;
+  --crackpi-transition:   0.18s ease;
 }
 
-/* Status badges */
-.badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+[data-bs-theme="dark"] {
+  --crackpi-nav-bg:    #0d1117;
+  --crackpi-card-bg:   #161b22;
+  --crackpi-border:    #30363d;
+  --crackpi-body:      #0d1117;
+  --crackpi-text-mute: #8b949e;
+  --crackpi-hover-bg:  rgba(255, 255, 255, 0.05);
 }
 
-/* Terminal styling */
-#terminal {
-    font-family: 'Courier New', monospace;
-    color: #00ff00;
-    background: #000;
-    padding: 15px;
-    border-radius: 5px;
-    overflow-y: auto;
+[data-bs-theme="light"] {
+  --crackpi-nav-bg:    #f4f6f8;
+  --crackpi-card-bg:   #ffffff;
+  --crackpi-border:    #d0d7de;
+  --crackpi-body:      #f6f8fa;
+  --crackpi-text-mute: #656d76;
+  --crackpi-hover-bg:  rgba(0, 0, 0, 0.04);
 }
 
-/* Client cards */
-.client-card {
-    transition: transform 0.2s ease-in-out;
+/* ── Base / Body ──────────────────────────────────────────────────── */
+body {
+  min-height: 100vh;
 }
 
-.client-card:hover {
-    transform: translateY(-2px);
+/* ── Navbar ───────────────────────────────────────────────────────── */
+#mainNav {
+  background: var(--crackpi-nav-bg) !important;
+  border-bottom: 1px solid var(--crackpi-border);
+  padding: 0.5rem 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+  backdrop-filter: blur(8px);
 }
 
-.client-status-indicator {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 8px;
+#mainNav .navbar-brand {
+  font-size: 1.1rem;
+  letter-spacing: 0.5px;
 }
 
-.client-status-connected {
-    background-color: var(--bs-success);
-    animation: pulse 2s infinite;
+#mainNav .nav-link {
+  font-size: 0.88rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 6px;
+  transition: background var(--crackpi-transition), color var(--crackpi-transition);
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
-.client-status-working {
-    background-color: var(--bs-warning);
-    animation: pulse 1s infinite;
+#mainNav .nav-link:hover,
+#mainNav .nav-link.active {
+  background: var(--crackpi-hover-bg);
 }
 
-.client-status-disconnected {
-    background-color: var(--bs-danger);
+#mainNav .nav-link.active {
+  color: var(--crackpi-accent) !important;
 }
 
-@keyframes pulse {
-    0% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.5;
-    }
-    100% {
-        opacity: 1;
-    }
+/* ── Cards ────────────────────────────────────────────────────────── */
+.card {
+  border-radius: var(--crackpi-radius);
+  border-color: var(--crackpi-border);
+  transition: box-shadow var(--crackpi-transition);
 }
 
-/* Job progress bars */
-.job-progress {
-    height: 25px;
-    border-radius: 12px;
-    position: relative;
-    overflow: hidden;
+.card-header {
+  border-bottom-color: var(--crackpi-border);
+  border-radius: calc(var(--crackpi-radius) - 1px) calc(var(--crackpi-radius) - 1px) 0 0 !important;
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.job-progress .progress-bar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    color: white;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+/* ── Shepherd.js Tour Styles ──────────────────────────────────────── */
+.shepherd-element {
+  border-radius: var(--crackpi-radius-lg) !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35) !important;
+  border: 1px solid var(--crackpi-border) !important;
+  background: var(--crackpi-card-bg) !important;
+  max-width: 380px !important;
 }
 
-/* Hash display */
-.hash-display {
-    font-family: monospace;
-    font-size: 0.9em;
-    word-break: break-all;
+.shepherd-header {
+  background: var(--crackpi-nav-bg) !important;
+  border-bottom: 1px solid var(--crackpi-border) !important;
+  border-radius: calc(var(--crackpi-radius-lg) - 1px) calc(var(--crackpi-radius-lg) - 1px) 0 0 !important;
+  padding: 14px 18px !important;
 }
 
-/* Password display */
-.password-display {
-    font-weight: bold;
-    color: var(--bs-success);
-    background: rgba(var(--bs-success-rgb), 0.1);
-    padding: 2px 6px;
-    border-radius: 4px;
+.shepherd-title {
+  font-weight: 700 !important;
+  font-size: 1rem !important;
+  color: var(--crackpi-accent) !important;
 }
 
-/* System metrics */
-.metric-card {
-    background: linear-gradient(135deg, var(--bs-primary), var(--bs-primary-dark));
-    color: white;
-    border: none;
+.shepherd-text {
+  padding: 14px 18px !important;
+  font-size: 0.88rem !important;
+  line-height: 1.55 !important;
 }
 
-.metric-card .card-body {
-    padding: 1.5rem;
+.shepherd-footer {
+  padding: 10px 18px 14px !important;
+  gap: 8px !important;
+  display: flex !important;
+  justify-content: flex-end !important;
 }
 
-.metric-value {
-    font-size: 2rem;
-    font-weight: bold;
-    margin: 0;
+.shepherd-has-cancel-icon .shepherd-cancel-icon {
+  color: var(--crackpi-text-mute) !important;
+  font-size: 1.25rem !important;
 }
 
-.metric-label {
-    font-size: 0.9rem;
-    opacity: 0.9;
-    margin: 0;
+.shepherd-arrow::before {
+  background: var(--crackpi-card-bg) !important;
+  border-color: var(--crackpi-border) !important;
 }
 
-/* Loading spinners */
-.loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10;
+/* ── Light theme: navbar fix ──────────────────────────────────────── */
+[data-bs-theme="light"] #mainNav {
+  background: #f4f6f8 !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
 }
 
-/* Responsive tables */
-.table-responsive {
-    border-radius: 8px;
-    overflow: hidden;
+[data-bs-theme="light"] .card {
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
 }
 
-/* Custom scrollbars */
-.custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.3) transparent;
+[data-bs-theme="light"] .card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,.10);
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-    width: 8px;
+/* ── Dark theme extras ────────────────────────────────────────────── */
+[data-bs-theme="dark"] .card {
+  background-color: var(--crackpi-card-bg);
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
+[data-bs-theme="dark"] .card:hover {
+  box-shadow: 0 4px 20px rgba(0,0,0,.35);
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.3);
-    border-radius: 4px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255,255,255,0.5);
-}
-
-/* Dark mode specific styles */
 [data-bs-theme="dark"] .bg-light {
-    background-color: var(--bs-gray-800) !important;
+  background-color: var(--bs-gray-800) !important;
 }
 
 [data-bs-theme="dark"] .text-dark {
-    color: var(--bs-gray-200) !important;
+  color: var(--bs-gray-200) !important;
 }
 
 [data-bs-theme="dark"] .border-light {
-    border-color: var(--bs-gray-700) !important;
+  border-color: var(--bs-gray-700) !important;
 }
 
-/* File upload styling */
+/* ── Buttons ──────────────────────────────────────────────────────── */
+.btn {
+  border-radius: 7px;
+  font-size: 0.86rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all var(--crackpi-transition);
+}
+
+.btn svg { width: 15px; height: 15px; }
+
+/* ── Progress bars ────────────────────────────────────────────────── */
+.progress {
+  border-radius: 20px;
+  background: var(--crackpi-hover-bg);
+}
+
+.progress-bar {
+  transition: width 0.4s ease;
+}
+
+.progress-sm { height: 6px; }
+
+.job-progress {
+  height: 22px;
+  border-radius: 11px;
+}
+
+.job-progress .progress-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: .78rem;
+}
+
+/* ── Status indicators ────────────────────────────────────────────── */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot-online  { background: #3fb950; }
+.status-dot-offline { background: #f85149; }
+.status-dot-idle    { background: #d29922; }
+.status-dot-working { background: #58a6ff; }
+
+.status-dot.pulse {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* ── Client cards ─────────────────────────────────────────────────── */
+.client-card {
+  transition: transform var(--crackpi-transition), box-shadow var(--crackpi-transition);
+  cursor: pointer;
+}
+
+.client-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 24px rgba(0,0,0,.2);
+}
+
+.client-status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.client-status-connected, .client-status-online {
+  background-color: var(--bs-success);
+  animation: pulse 2s infinite;
+}
+
+.client-status-working {
+  background-color: var(--bs-warning);
+  animation: pulse 1s infinite;
+}
+
+.client-status-disconnected, .client-status-offline {
+  background-color: var(--bs-danger);
+}
+
+/* ── Hash display ─────────────────────────────────────────────────── */
+.hash-display {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 0.82em;
+  word-break: break-all;
+  background: var(--crackpi-hover-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ── Password display ─────────────────────────────────────────────── */
+.password-display {
+  font-family: monospace;
+  font-weight: 700;
+  color: var(--crackpi-success);
+  background: rgba(25, 135, 84, 0.12);
+  padding: 2px 8px;
+  border-radius: 5px;
+  letter-spacing: 0.5px;
+}
+
+/* ── Metric cards ─────────────────────────────────────────────────── */
+.metric-card {
+  border: none;
+  border-radius: var(--crackpi-radius-lg);
+}
+
+.metric-value {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.metric-label {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin: 0;
+}
+
+/* ── Stats cards ──────────────────────────────────────────────────── */
+.stats-number {
+  font-size: 2.2rem;
+  font-weight: 700;
+}
+
+/* ── Tables ───────────────────────────────────────────────────────── */
+.table-responsive {
+  border-radius: var(--crackpi-radius);
+  overflow: hidden;
+}
+
+.table {
+  font-size: .875rem;
+}
+
+.table th {
+  font-size: .78rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  opacity: .75;
+}
+
+/* ── File upload ──────────────────────────────────────────────────── */
 .file-upload-area {
-    border: 2px dashed var(--bs-border-color);
-    border-radius: 8px;
-    padding: 2rem;
-    text-align: center;
-    transition: all 0.3s ease;
-    cursor: pointer;
+  border: 2px dashed var(--crackpi-border);
+  border-radius: var(--crackpi-radius);
+  padding: 2rem;
+  text-align: center;
+  transition: all var(--crackpi-transition);
+  cursor: pointer;
 }
 
-.file-upload-area:hover {
-    border-color: var(--bs-primary);
-    background-color: rgba(var(--bs-primary-rgb), 0.05);
-}
-
+.file-upload-area:hover,
 .file-upload-area.dragover {
-    border-color: var(--bs-primary);
-    background-color: rgba(var(--bs-primary-rgb), 0.1);
+  border-color: var(--crackpi-accent);
+  background: var(--crackpi-accent-glow);
 }
 
-/* Code blocks */
+/* ── Terminal ─────────────────────────────────────────────────────── */
+#terminal {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  color: #e6edf3;
+  background: #0d1117;
+  padding: 16px;
+  border-radius: var(--crackpi-radius);
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+/* ── Code blocks ──────────────────────────────────────────────────── */
 .code-block {
-    background: var(--bs-dark);
-    color: var(--bs-light);
-    padding: 1rem;
-    border-radius: 6px;
-    font-family: 'Courier New', monospace;
-    font-size: 0.9em;
-    overflow-x: auto;
+  background: #0d1117;
+  color: #e6edf3;
+  padding: 1rem;
+  border-radius: var(--crackpi-radius);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85em;
+  overflow-x: auto;
+  border: 1px solid var(--crackpi-border);
 }
 
-/* Notification styling */
+/* ── Badge cleanup ────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+  border-radius: 5px;
+}
+
+/* ── Charts ───────────────────────────────────────────────────────── */
+.chart-container {
+  position: relative;
+  height: 300px;
+  width: 100%;
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────────── */
+.custom-scrollbar,
+.term-output {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139,148,158,.4) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar,
+.term-output::-webkit-scrollbar { width: 5px; }
+
+.custom-scrollbar::-webkit-scrollbar-thumb,
+.term-output::-webkit-scrollbar-thumb {
+  background: rgba(139,148,158,.4);
+  border-radius: 3px;
+}
+
+/* ── Loading overlay ──────────────────────────────────────────────── */
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: inherit;
+}
+
+/* ── Notifications ────────────────────────────────────────────────── */
 .notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 1050;
-    max-width: 300px;
-    opacity: 0;
-    transform: translateX(100%);
-    transition: all 0.3s ease;
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1060;
+  max-width: 320px;
+  opacity: 0;
+  transform: translateX(110%);
+  transition: all 0.3s cubic-bezier(.4,0,.2,1);
 }
 
 .notification.show {
-    opacity: 1;
-    transform: translateX(0);
+  opacity: 1;
+  transform: translateX(0);
 }
 
-/* Chart containers */
-.chart-container {
-    position: relative;
-    height: 300px;
-    width: 100%;
+/* ── Utility ──────────────────────────────────────────────────────── */
+.cursor-pointer { cursor: pointer; }
+.user-select-none { user-select: none; }
+
+.text-truncate-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-/* Stats cards */
-.stats-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-}
-
-.stats-card .card-body {
-    padding: 1.5rem;
-}
-
-.stats-number {
-    font-size: 2.5rem;
-    font-weight: 700;
-    margin: 0;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-}
-
-.stats-label {
-    font-size: 1rem;
-    font-weight: 500;
-    opacity: 0.9;
-    margin: 0;
-}
-
-/* Animated icons */
 .icon-spin {
-    animation: spin 2s linear infinite;
+  animation: spin 1.5s linear infinite;
 }
 
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
-/* Utility classes */
-.text-truncate-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
+.gap-2 { gap: 0.5rem; }
 
-.cursor-pointer {
-    cursor: pointer;
-}
-
-.user-select-none {
-    user-select: none;
-}
-
-/* Mobile responsive adjustments */
+/* ── Responsive ───────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-    .metric-value {
-        font-size: 1.5rem;
-    }
-    
-    .stats-number {
-        font-size: 2rem;
-    }
-    
-    .table-responsive {
-        font-size: 0.9rem;
-    }
-    
-    .btn-group-vertical .btn {
-        font-size: 0.8rem;
-        padding: 0.25rem 0.5rem;
-    }
+  .metric-value  { font-size: 1.5rem; }
+  .stats-number  { font-size: 1.8rem; }
+  .table { font-size: 0.8rem; }
+  #mainNav .nav-link { padding: 0.35rem 0.6rem; font-size: 0.82rem; }
 }
 
-/* Print styles */
+/* ── Print ────────────────────────────────────────────────────────── */
 @media print {
-    .no-print {
-        display: none !important;
-    }
-    
-    .card {
-        break-inside: avoid;
-    }
+  .no-print { display: none !important; }
+  .card { break-inside: avoid; box-shadow: none !important; }
+  #mainNav { display: none !important; }
 }

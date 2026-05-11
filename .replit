@@ -2,7 +2,7 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["iana-etc", "nmap", "openssl", "postgresql"]
+packages = ["freetype", "glibcLocales", "iana-etc", "nmap", "openssl", "postgresql"]
 
 [deployment]
 deploymentTarget = "autoscale"

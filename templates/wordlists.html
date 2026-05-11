@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block title %}Wordlists &amp; Rules — CrackPi{% endblock %}
+
+{% block head %}
+<style>
+.wordlist-card { transition: box-shadow .15s; }
+.wordlist-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.2); }
+.file-badge { font-size: .75rem; }
+.preview-box { background: #0d1117; color: #c9d1d9; font-family: monospace; font-size: .78rem;
+               border-radius: 6px; padding: 12px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
+.drop-zone { border: 2px dashed var(--bs-border-color); border-radius: 12px; padding: 2rem;
+             text-align: center; cursor: pointer; transition: all .2s; }
+.drop-zone:hover, .drop-zone.dragover { border-color: var(--bs-primary); background: rgba(var(--bs-primary-rgb),.07); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h2 class="mb-1"><i data-feather="book-open"></i> Wordlists &amp; Rules</h2>
+    <p class="text-muted mb-0">Manage custom wordlists and hashcat rule sets for cracking jobs</p>
+  </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="wlTabs">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#wordlists-tab">
+    <i data-feather="list"></i> Wordlists
+    <span class="badge bg-secondary ms-1">{{ wordlists|length }}</span>
+  </button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rules-tab">
+    <i data-feather="code"></i> Rules
+    <span class="badge bg-secondary ms-1">{{ rules|length }}</span>
+  </button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#create-tab">
+    <i data-feather="plus-circle"></i> Create Wordlist
+  </button></li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- Wordlists -->
+  <div class="tab-pane fade show active" id="wordlists-tab">
+    <!-- Upload form -->
+    <div class="card mb-4">
+      <div class="card-header"><h6 class="mb-0"><i data-feather="upload"></i> Upload Wordlist</h6></div>
+      <div class="card-body">
+        <form action="{{ url_for('wordlists.upload_wordlist') }}" method="POST" enctype="multipart/form-data">
+          <div class="row g-2 align-items-end">
+            <div class="col">
+              <label class="form-label small text-muted">Select .txt / .lst / .dic file</label>
+              <div class="drop-zone" id="wlDropZone" onclick="document.getElementById('wlFile').click()">
+                <i data-feather="upload-cloud" width="32" height="32" class="text-muted mb-2"></i>
+                <p class="mb-0">Drop a wordlist here or <strong>click to browse</strong></p>
+                <small class="text-muted">Max 100 MB — .txt, .lst, .dic, .wl</small>
+                <input type="file" id="wlFile" name="file" accept=".txt,.lst,.dic,.wl" class="d-none" required>
+                <div id="wlFileName" class="mt-2 text-primary fw-bold"></div>
+              </div>
+            </div>
+            <div class="col-auto">
+              <button type="submit" class="btn btn-primary">
+                <i data-feather="upload"></i> Upload
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Wordlist table -->
+    <div class="row g-3">
+      {% for wl in wordlists %}
+      <div class="col-12">
+        <div class="card wordlist-card">
+          <div class="card-body py-2">
+            <div class="d-flex align-items-center gap-3">
+              <i data-feather="file-text" class="text-primary flex-shrink-0"></i>
+              <div class="flex-grow-1 min-width-0">
+                <div class="d-flex align-items-center gap-2">
+                  <strong class="text-truncate">{{ wl.name }}</strong>
+                  {% if wl.local %}
+                  <span class="badge bg-success file-badge">User Upload</span>
+                  {% else %}
+                  <span class="badge bg-secondary file-badge">System</span>
+                  {% endif %}
+                </div>
+                <div class="d-flex gap-3 small text-muted mt-1">
+                  <span><i data-feather="file" width="12" height="12"></i> {{ wl.size }}</span>
+                  <span><i data-feather="align-justify" width="12" height="12"></i> {{ "{:,}".format(wl.lines) }} words</span>
+                  <code class="text-muted" style="font-size:.7rem">{{ wl.path }}</code>
+                </div>
+              </div>
+              <div class="d-flex gap-2 flex-shrink-0">
+                <button class="btn btn-outline-secondary btn-sm" onclick="previewFile('{{ wl.path }}', '{{ wl.name }}')">
+                  <i data-feather="eye"></i> Preview
+                </button>
+                {% if wl.local and current_user.is_admin %}
+                <form method="POST" action="{{ url_for('wordlists.delete_wordlist') }}" class="d-inline"
+                      onsubmit="return confirm('Delete {{ wl.name }}?')">
+                  <input type="hidden" name="path" value="{{ wl.path }}">
+                  <button class="btn btn-outline-danger btn-sm"><i data-feather="trash-2"></i></button>
+                </form>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="col-12 text-center text-muted py-4">
+        <i data-feather="book-open" width="48" height="48"></i>
+        <p class="mt-2">No wordlists found. Upload one above or install wordlists on the system.</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Rules -->
+  <div class="tab-pane fade" id="rules-tab">
+    <!-- Upload form -->
+    <div class="card mb-4">
+      <div class="card-header"><h6 class="mb-0"><i data-feather="upload"></i> Upload Rule Set</h6></div>
+      <div class="card-body">
+        <form action="{{ url_for('wordlists.upload_rules') }}" method="POST" enctype="multipart/form-data">
+          <div class="row g-2 align-items-end">
+            <div class="col">
+              <div class="drop-zone" id="ruleDropZone" onclick="document.getElementById('ruleFile').click()">
+                <i data-feather="code" width="32" height="32" class="text-muted mb-2"></i>
+                <p class="mb-0">Drop a .rule / .rules / .txt file here or <strong>click to browse</strong></p>
+                <input type="file" id="ruleFile" name="file" accept=".rule,.rules,.txt" class="d-none" required>
+                <div id="ruleFileName" class="mt-2 text-primary fw-bold"></div>
+              </div>
+            </div>
+            <div class="col-auto">
+              <button type="submit" class="btn btn-primary">
+                <i data-feather="upload"></i> Upload
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      {% for rule in rules %}
+      <div class="col-12">
+        <div class="card wordlist-card">
+          <div class="card-body py-2">
+            <div class="d-flex align-items-center gap-3">
+              <i data-feather="code" class="text-warning flex-shrink-0"></i>
+              <div class="flex-grow-1 min-width-0">
+                <div class="d-flex align-items-center gap-2">
+                  <strong>{{ rule.name }}</strong>
+                  {% if rule.local %}<span class="badge bg-success file-badge">User Upload</span>
+                  {% else %}<span class="badge bg-secondary file-badge">System</span>{% endif %}
+                </div>
+                <div class="d-flex gap-3 small text-muted mt-1">
+                  <span><i data-feather="file" width="12" height="12"></i> {{ rule.size }}</span>
+                  <span><i data-feather="align-justify" width="12" height="12"></i> {{ "{:,}".format(rule.lines) }} rules</span>
+                  <code class="text-muted" style="font-size:.7rem">{{ rule.path }}</code>
+                </div>
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" onclick="previewFile('{{ rule.path }}', '{{ rule.name }}')">
+                  <i data-feather="eye"></i> Preview
+                </button>
+                {% if rule.local and current_user.is_admin %}
+                <form method="POST" action="{{ url_for('wordlists.delete_rules') }}" class="d-inline"
+                      onsubmit="return confirm('Delete {{ rule.name }}?')">
+                  <input type="hidden" name="path" value="{{ rule.path }}">
+                  <button class="btn btn-outline-danger btn-sm"><i data-feather="trash-2"></i></button>
+                </form>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="col-12 text-center text-muted py-4">
+        <i data-feather="code" width="48" height="48"></i>
+        <p class="mt-2">No rule files found. Upload one above or install hashcat on the system.</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Create wordlist -->
+  <div class="tab-pane fade" id="create-tab">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0"><i data-feather="edit-3"></i> Create Custom Wordlist</h6></div>
+      <div class="card-body">
+        <form action="{{ url_for('wordlists.create_wordlist') }}" method="POST">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">Wordlist Name</label>
+              <input type="text" name="name" class="form-control" placeholder="my_passwords.txt" required>
+              <div class="form-text">Will be saved as a .txt file</div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Words (one per line)</label>
+              <textarea name="content" class="form-control font-monospace" rows="15"
+                        placeholder="password&#10;123456&#10;admin&#10;letmein&#10;..."></textarea>
+            </div>
+            <div class="col-auto">
+              <button type="submit" class="btn btn-primary">
+                <i data-feather="save"></i> Save Wordlist
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="previewTitle">File Preview</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-body-tertiary border-bottom">
+          <small id="previewMeta" class="text-muted"></small>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadPreview(currentPreviewPath, Math.max(0, previewOffset-50))">
+              <i data-feather="chevron-up"></i> Prev 50
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadPreview(currentPreviewPath, previewOffset+50)">
+              <i data-feather="chevron-down"></i> Next 50
+            </button>
+          </div>
+        </div>
+        <div class="preview-box mx-3 my-2" id="previewContent">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPreviewPath = '';
+let previewOffset = 0;
+
+// Drag & drop
+['wlDropZone', 'ruleDropZone'].forEach(id => {
+  const zone = document.getElementById(id);
+  if (!zone) return;
+  const inputId = id === 'wlDropZone' ? 'wlFile' : 'ruleFile';
+  const nameId = id === 'wlDropZone' ? 'wlFileName' : 'ruleFileName';
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      document.getElementById(inputId).files = e.dataTransfer.files;
+      document.getElementById(nameId).textContent = file.name;
+    }
+  });
+  document.getElementById(inputId)?.addEventListener('change', function() {
+    if (this.files[0]) document.getElementById(nameId).textContent = this.files[0].name;
+  });
+});
+
+function previewFile(path, name) {
+  currentPreviewPath = path;
+  previewOffset = 0;
+  document.getElementById('previewTitle').textContent = name;
+  new bootstrap.Modal(document.getElementById('previewModal')).show();
+  loadPreview(path, 0);
+}
+
+function loadPreview(path, offset) {
+  previewOffset = Math.max(0, offset);
+  fetch(`/wordlists/preview?path=${encodeURIComponent(path)}&offset=${previewOffset}&limit=50`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        document.getElementById('previewContent').textContent = 'Error: ' + data.error;
+        return;
+      }
+      document.getElementById('previewContent').textContent = data.lines.join('\n');
+      document.getElementById('previewMeta').textContent =
+        `Showing lines ${previewOffset+1}–${previewOffset+data.lines.length} of ${data.total.toLocaleString()} total`;
+    })
+    .catch(e => { document.getElementById('previewContent').textContent = 'Error: ' + e.message; });
+}
+
+if (typeof feather !== 'undefined') feather.replace();
+</script>
+{% endblock %}

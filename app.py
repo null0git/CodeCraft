@@ -46,7 +46,9 @@ def create_app():
     from routes.progress import progress_bp
     from routes.terminal import terminal_bp
     from routes.cluster import cluster_bp
-    
+    from routes.analysis import analysis_bp
+    from routes.wordlists import wordlists_bp
+
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(clients_bp)
@@ -57,6 +59,8 @@ def create_app():
     app.register_blueprint(progress_bp)
     app.register_blueprint(terminal_bp)
     app.register_blueprint(cluster_bp)
+    app.register_blueprint(analysis_bp)
+    app.register_blueprint(wordlists_bp)
     
     # Create tables
     with app.app_context():

@@ -1,165 +1,215 @@
 {% extends "base.html" %}
 
-{% block title %}Terminal - {{ client.hostname or client.client_id[:8] }} - CrackPi{% endblock %}
+{% block title %}Terminal — {{ client.hostname or client.client_id[:8] }} — CrackPi{% endblock %}
 
 {% block head %}
 <style>
-.terminal-container {
-    background-color: #000;
-    color: #00ff00;
-    font-family: 'Courier New', monospace;
-    border-radius: 8px;
+/* ── Terminal Container ─────────────────────────────────────────────────── */
+.term-wrap {
+    background: #0d1117;
+    border-radius: 10px;
     overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
 }
 
-.terminal-header {
-    background-color: #333;
-    color: #fff;
-    padding: 10px 15px;
-    border-bottom: 1px solid #555;
+.term-titlebar {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 8px 16px;
     display: flex;
-    justify-content: between;
     align-items: center;
+    gap: 12px;
 }
 
-.terminal-output {
-    height: 500px;
+.term-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.term-dot.red    { background: #ff5f57; }
+.term-dot.yellow { background: #febc2e; }
+.term-dot.green  { background: #28c840; }
+
+.term-title {
+    font-size: .8rem;
+    color: #8b949e;
+    flex: 1;
+    text-align: center;
+}
+
+.term-output {
+    height: 480px;
     overflow-y: auto;
-    padding: 15px;
-    background-color: #000;
-    color: #00ff00;
-    font-size: 14px;
-    line-height: 1.4;
+    padding: 12px 16px;
+    background: #0d1117;
+    color: #c9d1d9;
+    font-size: 13px;
+    line-height: 1.5;
+    scrollbar-width: thin;
+    scrollbar-color: #30363d transparent;
 }
 
-.terminal-input {
-    background-color: #000;
-    border: none;
-    color: #00ff00;
-    padding: 10px 15px;
-    width: 100%;
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
-}
+.term-output::-webkit-scrollbar { width: 6px; }
+.term-output::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 
-.terminal-input:focus {
-    outline: none;
-    background-color: #111;
-}
-
-.terminal-prompt {
-    color: #00aa00;
-    font-weight: bold;
-}
-
-.terminal-command {
-    color: #ffffff;
-}
-
-.terminal-output-text {
-    color: #cccccc;
-    white-space: pre-wrap;
-}
-
-.terminal-error {
-    color: #ff4444;
-}
-
-.connection-status {
-    display: inline-flex;
+.term-input-row {
+    display: flex;
     align-items: center;
-    gap: 5px;
+    background: #0d1117;
+    border-top: 1px solid #21262d;
+    padding: 8px 12px;
+    gap: 8px;
 }
 
-.status-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: #00ff00;
-    animation: pulse 2s infinite;
+.term-prompt { color: #58a6ff; font-weight: bold; white-space: nowrap; font-size: 13px; }
+.term-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #c9d1d9;
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+    caret-color: #58a6ff;
+}
+.term-input::placeholder { color: #484f58; }
+
+/* ── Output line types ──────────────────────────────────────────────────── */
+.tl-cmd    { color: #58a6ff; }
+.tl-out    { color: #c9d1d9; white-space: pre-wrap; word-break: break-all; }
+.tl-err    { color: #f85149; white-space: pre-wrap; word-break: break-all; }
+.tl-sys    { color: #8b949e; font-style: italic; }
+.tl-ok     { color: #3fb950; }
+
+/* ── Status pill ────────────────────────────────────────────────────────── */
+.status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: .75rem; padding: 3px 10px;
+    border-radius: 20px; border: 1px solid;
+}
+.status-pill.connected    { color: #3fb950; border-color: #3fb950; }
+.status-pill.disconnected { color: #f85149; border-color: #f85149; }
+.status-pill.waiting      { color: #d29922; border-color: #d29922; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.status-dot.blink { animation: blink 1.2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── Toolbar ────────────────────────────────────────────────────────────── */
+.term-toolbar {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 6px 12px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
 }
 
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
-}
-
-.terminal-toolbar {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-    padding: 10px 15px;
-}
+/* ── History suggestion ─────────────────────────────────────────────────── */
+.history-hint { color: #484f58; pointer-events: none; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-3">
-    <div class="row">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h4>
-                    <i data-feather="terminal"></i> 
-                    Terminal - {{ client.hostname or client.client_id[:8] }}
-                </h4>
-                <div class="d-flex align-items-center gap-3">
-                    <div class="connection-status">
-                        <div class="status-indicator" id="connectionStatus"></div>
-                        <span class="text-muted">Connected</span>
-                    </div>
-                    <a href="{{ url_for('terminal.terminal_dashboard') }}" class="btn btn-outline-secondary">
-                        <i data-feather="arrow-left"></i> Back
-                    </a>
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <div class="d-flex align-items-center gap-3">
+                <a href="{{ url_for('terminal.terminal_dashboard') }}" class="btn btn-outline-secondary btn-sm">
+                    <i data-feather="arrow-left"></i>
+                </a>
+                <div>
+                    <h4 class="mb-0">
+                        <i data-feather="terminal"></i>
+                        {{ client.hostname or client.client_id[:12] }}
+                        <small class="text-muted ms-2">{{ client.ip_address or '' }}</small>
+                    </h4>
+                </div>
+                <div id="termStatus" class="status-pill disconnected ms-auto">
+                    <div class="status-dot"></div>
+                    <span id="termStatusText">Checking...</span>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="terminal-toolbar">
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-primary" onclick="clearTerminal()">
-                            <i data-feather="trash-2"></i> Clear
-                        </button>
-                        <button type="button" class="btn btn-outline-info" onclick="sendCommand('ls -la')">
-                            <i data-feather="folder"></i> List Files
-                        </button>
-                        <button type="button" class="btn btn-outline-info" onclick="sendCommand('ps aux')">
-                            <i data-feather="activity"></i> Processes
-                        </button>
-                        <button type="button" class="btn btn-outline-info" onclick="sendCommand('top -n 1')">
-                            <i data-feather="cpu"></i> System Info
-                        </button>
-                        <button type="button" class="btn btn-outline-warning" onclick="interruptCommand()">
-                            <i data-feather="square"></i> Interrupt
-                        </button>
+        <div class="col-lg-9">
+            <div class="term-wrap">
+                <!-- macOS-style titlebar -->
+                <div class="term-titlebar">
+                    <div class="term-dot red"></div>
+                    <div class="term-dot yellow"></div>
+                    <div class="term-dot green"></div>
+                    <span class="term-title">{{ current_user.username }}@{{ client.hostname or client.ip_address }} — bash</span>
+                    <small class="text-muted" style="font-size:.7rem">session:{{ session_id[:8] }}</small>
+                </div>
+
+                <!-- Quick command toolbar -->
+                <div class="term-toolbar">
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="sendQuick('uname -a')">uname</button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="sendQuick('ls -la')">ls</button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="sendQuick('pwd')">pwd</button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="sendQuick('ps aux --sort=-%cpu | head -15')">processes</button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="sendQuick('free -h')">memory</button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="sendQuick('df -h /')">disk</button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="sendQuick('cat /proc/cpuinfo | grep \"model name\" | head -1')">cpu</button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="sendQuick('uptime')">uptime</button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="sendQuick('ip addr show')">network</button>
+                    <button class="btn btn-outline-danger btn-sm py-0 ms-auto" onclick="clearTerm()">Clear</button>
+                </div>
+
+                <!-- Output area -->
+                <div class="term-output" id="termOutput">
+                    <div class="tl-sys">CrackPi Remote Terminal — connecting to {{ client.hostname or client.client_id[:8] }}...</div>
+                    <div class="tl-sys">Type commands and press Enter. Commands are routed to the client via HTTP.</div>
+                    <br>
+                </div>
+
+                <!-- Input row -->
+                <div class="term-input-row">
+                    <span class="term-prompt">{{ current_user.username }}@{{ client.hostname or 'remote' }}:~$</span>
+                    <input type="text" class="term-input" id="termInput"
+                           placeholder="enter command..." autocomplete="off" spellcheck="false">
+                    <button class="btn btn-sm btn-primary px-3" id="execBtn" onclick="execFromBtn()">Run</button>
+                </div>
+            </div>
+
+            <!-- Pending indicator -->
+            <div id="pendingBar" class="mt-2 d-none">
+                <div class="d-flex align-items-center gap-2 text-muted small">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                    <span id="pendingMsg">Waiting for client response...</span>
+                    <button class="btn btn-sm btn-outline-warning ms-auto py-0" onclick="abortWait()">Abort</button>
+                </div>
+                <div class="progress mt-1" style="height:3px">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="pendingProgress" style="width:0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar: info + history -->
+        <div class="col-lg-3">
+            <div class="card mb-3">
+                <div class="card-header py-2"><h6 class="mb-0">Client Info</h6></div>
+                <div class="card-body p-3 small">
+                    <div class="mb-1"><strong>ID:</strong> <code>{{ client.client_id[:16] }}…</code></div>
+                    <div class="mb-1"><strong>Host:</strong> {{ client.hostname or '—' }}</div>
+                    <div class="mb-1"><strong>IP:</strong> {{ client.ip_address or '—' }}</div>
+                    <div class="mb-1"><strong>OS:</strong> {{ client.os_info or '—' }}</div>
+                    <div class="mb-1"><strong>CPU:</strong> {{ client.cpu_model or '—' }}</div>
+                    <div class="mb-1"><strong>Cores:</strong> {{ client.cpu_cores or '—' }}</div>
+                    <div class="mb-1"><strong>Status:</strong>
+                        <span class="badge bg-{{ 'success' if client.status in ['online','connected','idle','working'] else 'danger' }}">
+                            {{ client.status }}
+                        </span>
                     </div>
                 </div>
-                
-                <div class="terminal-container">
-                    <div class="terminal-header">
-                        <span>{{ current_user.username }}@{{ client.hostname or client.ip_address }}</span>
-                        <small class="text-muted">Session: {{ session_id[:8] }}...</small>
-                    </div>
-                    
-                    <div class="terminal-output" id="terminalOutput">
-                        <div class="terminal-prompt">
-                            CrackPi Terminal Connected to {{ client.client_id[:8] }}...<br>
-                            Type commands and press Enter to execute on remote client.<br>
-                            <br>
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; align-items: center; background-color: #000; padding: 0;">
-                        <span class="terminal-prompt" style="padding: 10px 15px;">$</span>
-                        <input type="text" 
-                               class="terminal-input" 
-                               id="commandInput" 
-                               placeholder="Enter command..."
-                               autofocus>
-                    </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">History</h6>
+                    <button class="btn btn-sm btn-outline-secondary py-0" onclick="clearHistory()">Clear</button>
+                </div>
+                <div id="historyList" class="list-group list-group-flush" style="max-height:320px;overflow-y:auto;font-family:monospace;font-size:.78rem">
+                    <div class="list-group-item text-muted py-2">No commands yet</div>
                 </div>
             </div>
         </div>
@@ -169,150 +219,259 @@
 
 {% block scripts %}
 <script>
-const sessionId = '{{ session_id }}';
-const clientId = '{{ client.client_id }}';
-let commandHistory = [];
-let historyIndex = -1;
-let isExecuting = false;
+const SESSION_ID = '{{ session_id }}';
+const CLIENT_ID  = '{{ client.client_id }}';
 
-const terminalOutput = document.getElementById('terminalOutput');
-const commandInput = document.getElementById('commandInput');
+let history_cmds = JSON.parse(localStorage.getItem('term_history_' + CLIENT_ID) || '[]');
+let histIdx = -1;
+let pendingPoll = null;
+let pendingTimer = null;
+let pendingPct = 0;
+let aborted = false;
+let clientOnline = false;
 
-// Handle command input
-commandInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        const command = this.value.trim();
-        if (command) {
-            executeCommand(command);
-            commandHistory.unshift(command);
-            historyIndex = -1;
-            this.value = '';
+const termOut   = document.getElementById('termOutput');
+const termInput = document.getElementById('termInput');
+const pendingBar = document.getElementById('pendingBar');
+const pendingMsg = document.getElementById('pendingMsg');
+const pendingProg = document.getElementById('pendingProgress');
+const execBtn   = document.getElementById('execBtn');
+const statusEl  = document.getElementById('termStatus');
+const statusTxt = document.getElementById('termStatusText');
+const histList  = document.getElementById('historyList');
+
+// ── Check client connectivity ─────────────────────────────────────────────
+function checkClientStatus() {
+    fetch('/api/clients')
+        .then(r => r.json())
+        .then(clients => {
+            const c = clients.find(x => x.client_id === CLIENT_ID);
+            const online = c && ['online','connected','idle','working'].includes(c.status);
+            clientOnline = online;
+            statusEl.className = 'status-pill ' + (online ? 'connected' : 'disconnected');
+            statusTxt.textContent = online ? c.status.toUpperCase() : 'OFFLINE';
+            const dot = statusEl.querySelector('.status-dot');
+            dot.className = 'status-dot' + (online ? ' blink' : '');
+        })
+        .catch(() => {
+            statusEl.className = 'status-pill disconnected';
+            statusTxt.textContent = 'ERROR';
+        });
+}
+checkClientStatus();
+setInterval(checkClientStatus, 10000);
+
+// ── History sidebar ───────────────────────────────────────────────────────
+function updateHistorySidebar() {
+    if (!history_cmds.length) {
+        histList.innerHTML = '<div class="list-group-item text-muted py-2">No commands yet</div>';
+        return;
+    }
+    histList.innerHTML = history_cmds.slice(0, 50).map((cmd, i) =>
+        `<div class="list-group-item list-group-item-action py-1 px-2 cursor-pointer"
+              onclick="termInput.value='${CSS.escape(cmd)}';termInput.focus()"
+              title="${cmd}">${cmd.length > 38 ? cmd.slice(0,38)+'…' : cmd}</div>`
+    ).join('');
+}
+updateHistorySidebar();
+
+function clearHistory() {
+    history_cmds = [];
+    localStorage.setItem('term_history_' + CLIENT_ID, '[]');
+    updateHistorySidebar();
+}
+
+// ── Terminal output helpers ───────────────────────────────────────────────
+function termLine(text, cls = '') {
+    const d = document.createElement('div');
+    d.className = cls;
+    d.textContent = text;
+    termOut.appendChild(d);
+    termOut.scrollTop = termOut.scrollHeight;
+}
+function termHTML(html) {
+    const d = document.createElement('div');
+    d.innerHTML = html;
+    termOut.appendChild(d);
+    termOut.scrollTop = termOut.scrollHeight;
+}
+
+function clearTerm() {
+    termOut.innerHTML = '<div class="tl-sys">Terminal cleared.<br></div>';
+}
+
+// ── Pending state ─────────────────────────────────────────────────────────
+function setPending(msg) {
+    pendingBar.classList.remove('d-none');
+    pendingMsg.textContent = msg;
+    pendingPct = 0;
+    aborted = false;
+    execBtn.disabled = true;
+    termInput.disabled = true;
+
+    // Animate progress bar
+    pendingTimer = setInterval(() => {
+        pendingPct = Math.min(pendingPct + 2, 90);
+        pendingProg.style.width = pendingPct + '%';
+    }, 300);
+}
+
+function clearPending() {
+    pendingBar.classList.add('d-none');
+    pendingProg.style.width = '0%';
+    execBtn.disabled = false;
+    termInput.disabled = false;
+    termInput.focus();
+    if (pendingTimer) { clearInterval(pendingTimer); pendingTimer = null; }
+}
+
+function abortWait() {
+    aborted = true;
+    if (pendingPoll) { clearTimeout(pendingPoll); pendingPoll = null; }
+    clearPending();
+    termLine('⚡ Aborted waiting for response.', 'tl-sys');
+}
+
+// ── Execute command ───────────────────────────────────────────────────────
+function executeCommand(cmd) {
+    cmd = cmd.trim();
+    if (!cmd) return;
+
+    // Local commands
+    if (cmd === 'clear' || cmd === 'cls') { clearTerm(); return; }
+    if (cmd === 'history') {
+        termLine('$ history', 'tl-cmd');
+        history_cmds.forEach((c, i) => termLine(`  ${i+1}  ${c}`, 'tl-out'));
+        return;
+    }
+
+    // Add to history
+    history_cmds = [cmd, ...history_cmds.filter(x => x !== cmd)].slice(0, 200);
+    localStorage.setItem('term_history_' + CLIENT_ID, JSON.stringify(history_cmds));
+    histIdx = -1;
+    updateHistorySidebar();
+
+    termLine(`$ ${cmd}`, 'tl-cmd');
+
+    if (!clientOnline) {
+        termLine('✗ Client is offline. Command not sent.', 'tl-err');
+        return;
+    }
+
+    setPending('Sending command to client...');
+
+    fetch('/terminal/api/execute', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ session_id: SESSION_ID, client_id: CLIENT_ID, command: cmd })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            clearPending();
+            termLine('✗ Server error: ' + data.error, 'tl-err');
+            return;
         }
+        pendingMsg.textContent = 'Command sent — waiting for client response...';
+        pollForResponse(0);
+    })
+    .catch(e => {
+        clearPending();
+        termLine('✗ Network error: ' + e.message, 'tl-err');
+    });
+}
+
+// ── Poll for response ─────────────────────────────────────────────────────
+function pollForResponse(attempts) {
+    if (aborted) return;
+    const MAX_ATTEMPTS = 30; // 30s timeout
+
+    pendingPoll = setTimeout(() => {
+        if (aborted) return;
+
+        fetch('/terminal/api/poll/' + SESSION_ID)
+            .then(r => r.json())
+            .then(data => {
+                if (aborted) return;
+                if (data.responses && data.responses.length > 0) {
+                    clearPending();
+                    data.responses.forEach(resp => {
+                        if (resp.stdout && resp.stdout.trim()) {
+                            resp.stdout.trim().split('\n').forEach(line => termLine(line, 'tl-out'));
+                        }
+                        if (resp.stderr && resp.stderr.trim()) {
+                            resp.stderr.trim().split('\n').forEach(line => termLine(line, 'tl-err'));
+                        }
+                        if (resp.return_code !== 0) {
+                            termLine(`[exit: ${resp.return_code}]`, 'tl-sys');
+                        }
+                    });
+                } else if (attempts < MAX_ATTEMPTS) {
+                    pendingMsg.textContent = `Waiting for response... (${attempts+1}s)`;
+                    pollForResponse(attempts + 1);
+                } else {
+                    clearPending();
+                    termLine('⏱ Timed out waiting for client response (30s). Client may be busy or offline.', 'tl-err');
+                }
+            })
+            .catch(e => {
+                if (attempts < MAX_ATTEMPTS) {
+                    pollForResponse(attempts + 1);
+                } else {
+                    clearPending();
+                    termLine('✗ Poll error: ' + e.message, 'tl-err');
+                }
+            });
+    }, 1000);
+}
+
+// ── Input handling ────────────────────────────────────────────────────────
+function sendQuick(cmd) {
+    termInput.value = cmd;
+    executeCommand(cmd);
+    termInput.value = '';
+}
+
+function execFromBtn() {
+    const cmd = termInput.value;
+    termInput.value = '';
+    executeCommand(cmd);
+}
+
+termInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+        const cmd = termInput.value;
+        termInput.value = '';
+        executeCommand(cmd);
     } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        if (historyIndex < commandHistory.length - 1) {
-            historyIndex++;
-            this.value = commandHistory[historyIndex];
+        if (histIdx < history_cmds.length - 1) {
+            histIdx++;
+            termInput.value = history_cmds[histIdx] || '';
         }
     } else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        if (historyIndex > 0) {
-            historyIndex--;
-            this.value = commandHistory[historyIndex];
-        } else {
-            historyIndex = -1;
-            this.value = '';
-        }
+        if (histIdx > 0) { histIdx--; termInput.value = history_cmds[histIdx] || ''; }
+        else { histIdx = -1; termInput.value = ''; }
+    } else if (e.key === 'l' && e.ctrlKey) {
+        e.preventDefault();
+        clearTerm();
+    } else if (e.key === 'c' && e.ctrlKey) {
+        if (pendingPoll) abortWait();
     }
 });
 
-function executeCommand(command) {
-    if (isExecuting) {
-        appendToTerminal('Command already executing. Please wait...', 'terminal-error');
-        return;
-    }
-    
-    isExecuting = true;
-    appendToTerminal(`$ ${command}`, 'terminal-command');
-    
-    fetch('/terminal/api/execute', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            session_id: sessionId,
-            client_id: clientId,
-            command: command
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            appendToTerminal(`Error: ${data.error}`, 'terminal-error');
-            isExecuting = false;
-        } else {
-            appendToTerminal('Command sent to client. Waiting for response...', 'text-muted');
-            // Start polling for response
-            setTimeout(() => pollForResponse(), 1000);
-        }
-    })
-    .catch(error => {
-        appendToTerminal(`Error: ${error.message}`, 'terminal-error');
-        isExecuting = false;
-    });
-}
+// Auto-focus
+termInput.focus();
 
-function sendCommand(command) {
-    commandInput.value = command;
-    executeCommand(command);
-}
-
-function pollForResponse() {
-    fetch(`/terminal/api/poll/${sessionId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.responses && data.responses.length > 0) {
-                data.responses.forEach(response => {
-                    if (response.stdout) {
-                        appendToTerminal(response.stdout, 'terminal-output-text');
-                    }
-                    if (response.stderr) {
-                        appendToTerminal(response.stderr, 'terminal-error');
-                    }
-                });
-                isExecuting = false;
-            } else if (isExecuting) {
-                // Continue polling if still executing
-                setTimeout(() => pollForResponse(), 1000);
-            }
-        })
-        .catch(error => {
-            appendToTerminal(`Polling error: ${error.message}`, 'terminal-error');
-            isExecuting = false;
-        });
-}
-
-function appendToTerminal(text, className = '') {
-    const div = document.createElement('div');
-    div.textContent = text;
-    if (className) {
-        div.className = className;
-    }
-    terminalOutput.appendChild(div);
-    terminalOutput.scrollTop = terminalOutput.scrollHeight;
-}
-
-function clearTerminal() {
-    terminalOutput.innerHTML = `
-        <div class="terminal-prompt">
-            Terminal cleared<br>
-        </div>
-    `;
-}
-
-function interruptCommand() {
-    isExecuting = false;
-    appendToTerminal('Command interrupted by user', 'terminal-error');
-}
-
-// Auto-focus input
-commandInput.focus();
-
-// Keep session alive
+// ── Keep session alive ────────────────────────────────────────────────────
 setInterval(() => {
-    fetch(`/terminal/api/poll/${sessionId}`)
-        .catch(error => {
-            console.log('Keep-alive error:', error);
-        });
-}, 30000);
+    fetch('/terminal/api/poll/' + SESSION_ID).catch(() => {});
+}, 25000);
 
-// Cleanup on page unload
-window.addEventListener('beforeunload', function() {
-    fetch(`/terminal/api/session/${sessionId}/close`, {
-        method: 'POST'
-    });
+// ── Cleanup on close ──────────────────────────────────────────────────────
+window.addEventListener('beforeunload', () => {
+    navigator.sendBeacon('/terminal/api/session/' + SESSION_ID + '/close');
 });
 </script>
 {% endblock %}

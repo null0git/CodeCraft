@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}Hash Analysis — CrackPi{% endblock %}
+
+{% block head %}
+<style>
+.stat-card { border-radius: 12px; transition: transform .15s; }
+.stat-card:hover { transform: translateY(-3px); }
+.chart-wrap { position: relative; height: 280px; }
+.crack-bar { height: 10px; border-radius: 5px; background: linear-gradient(90deg,#198754,#0dcaf0); }
+.table-analysis td, .table-analysis th { font-size: .85rem; }
+.analysis-hero { background: linear-gradient(135deg,#0d1b2a 0%,#1a3a5c 100%);
+                 border-radius: 16px; padding: 2rem; margin-bottom: 1.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="analysis-hero">
+  <div class="row align-items-center">
+    <div class="col">
+      <h2 class="mb-1"><i data-feather="bar-chart-2"></i> Hash Analysis &amp; Reporting</h2>
+      <p class="text-muted mb-0">Cluster-wide statistics, crack rates, and historical trends</p>
+    </div>
+    <div class="col-auto">
+      <a href="{{ url_for('analysis.export_global_csv') }}" class="btn btn-outline-success">
+        <i data-feather="download"></i> Export CSV
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- KPI cards -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card border-0 bg-primary bg-opacity-25">
+      <div class="card-body">
+        <p class="text-muted mb-1 small">Total Jobs</p>
+        <h2 class="mb-0 fw-bold">{{ total_jobs }}</h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card border-0 bg-info bg-opacity-25">
+      <div class="card-body">
+        <p class="text-muted mb-1 small">Total Hashes</p>
+        <h2 class="mb-0 fw-bold">{{ "{:,}".format(total_hashes) }}</h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card border-0 bg-success bg-opacity-25">
+      <div class="card-body">
+        <p class="text-muted mb-1 small">Cracked</p>
+        <h2 class="mb-0 fw-bold text-success">{{ "{:,}".format(cracked_count) }}</h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card stat-card border-0 bg-warning bg-opacity-25">
+      <div class="card-body">
+        <p class="text-muted mb-1 small">Crack Rate</p>
+        <h2 class="mb-0 fw-bold text-warning">{{ crack_rate }}%</h2>
+        <div class="crack-bar mt-2" style="width:{{ crack_rate }}%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Daily cracks chart -->
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header"><h6 class="mb-0"><i data-feather="trending-up"></i> Cracks — Last 7 Days</h6></div>
+      <div class="card-body">
+        <div class="chart-wrap"><canvas id="dailyCracksChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hash type distribution -->
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header"><h6 class="mb-0"><i data-feather="pie-chart"></i> Hash Type Distribution</h6></div>
+      <div class="card-body">
+        <div class="chart-wrap"><canvas id="hashTypeChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Job status distribution -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0"><i data-feather="layers"></i> Job Status</h6></div>
+      <div class="card-body">
+        <div class="chart-wrap" style="height:200px"><canvas id="statusChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top jobs by crack count -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0"><i data-feather="award"></i> Top Jobs by Cracks</h6></div>
+      <div class="card-body p-0">
+        <table class="table table-analysis mb-0">
+          <thead><tr><th>Job</th><th>Total</th><th>Cracked</th><th>Rate</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {% for j in top_jobs %}
+            <tr>
+              <td class="fw-bold">{{ j.name }}</td>
+              <td>{{ "{:,}".format(j.total) }}</td>
+              <td class="text-success">{{ "{:,}".format(j.cracked) }}</td>
+              <td>
+                {% set rate = (j.cracked / j.total * 100)|round(1) if j.total > 0 else 0 %}
+                <div class="d-flex align-items-center gap-2">
+                  <div class="progress flex-grow-1" style="height:6px">
+                    <div class="progress-bar bg-success" style="width:{{ rate }}%"></div>
+                  </div>
+                  <small>{{ rate }}%</small>
+                </div>
+              </td>
+              <td>
+                {% if j.status == 'completed' %}<span class="badge bg-success">Completed</span>
+                {% elif j.status == 'running' %}<span class="badge bg-warning">Running</span>
+                {% elif j.status == 'failed' %}<span class="badge bg-danger">Failed</span>
+                {% else %}<span class="badge bg-secondary">{{ j.status|capitalize }}</span>{% endif %}
+              </td>
+              <td></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-center text-muted py-3">No jobs yet</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Per-job analysis selector -->
+<div class="card mb-4">
+  <div class="card-header"><h6 class="mb-0"><i data-feather="search"></i> Per-Job Deep Analysis</h6></div>
+  <div class="card-body">
+    {% if jobs %}
+    <div class="row g-3">
+      {% for job in jobs %}
+      <div class="col-md-4 col-lg-3">
+        <a href="{{ url_for('analysis.job_analysis', job_id=job.id) }}"
+           class="card text-decoration-none h-100 border-0 bg-body-tertiary p-3 d-flex flex-column">
+          <div class="d-flex justify-content-between mb-2">
+            <strong class="text-truncate">{{ job.name }}</strong>
+            {% if job.status == 'completed' %}<span class="badge bg-success">Done</span>
+            {% elif job.status == 'running' %}<span class="badge bg-warning">Running</span>
+            {% else %}<span class="badge bg-secondary">{{ job.status }}</span>{% endif %}
+          </div>
+          <small class="text-muted">{{ job.hash_type.name if job.hash_type else 'Unknown' }}</small>
+          <div class="progress mt-2" style="height:5px">
+            <div class="progress-bar bg-success" style="width:{{ job.progress_percent }}%"></div>
+          </div>
+          <small class="text-muted mt-1">{{ job.cracked_hashes }}/{{ job.total_hashes }} cracked</small>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted">
+      <i data-feather="layers" width="40" height="40"></i>
+      <p class="mt-2">No jobs found. <a href="{{ url_for('jobs.create') }}">Create a job</a> to start analyzing.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Daily cracks chart
+const dailyLabels = {{ daily_cracks | map(attribute='date') | list | tojson }};
+const dailyData   = {{ daily_cracks | map(attribute='count') | list | tojson }};
+
+new Chart(document.getElementById('dailyCracksChart'), {
+  type: 'bar',
+  data: {
+    labels: dailyLabels,
+    datasets: [{
+      label: 'Passwords Cracked',
+      data: dailyData,
+      backgroundColor: 'rgba(25, 135, 84, 0.7)',
+      borderColor: '#198754',
+      borderWidth: 1,
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+  }
+});
+
+// Hash type pie
+const htLabels = {{ hash_type_dist | map(attribute='name') | list | tojson }};
+const htData   = {{ hash_type_dist | map(attribute='count') | list | tojson }};
+const htColors = ['#0d6efd','#6610f2','#6f42c1','#d63384','#dc3545','#fd7e14','#ffc107','#198754','#20c997','#0dcaf0'];
+
+new Chart(document.getElementById('hashTypeChart'), {
+  type: 'doughnut',
+  data: { labels: htLabels, datasets: [{ data: htData, backgroundColor: htColors, borderWidth: 2 }] },
+  options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } } }
+});
+
+// Status pie
+const stLabels = {{ status_dist | map(attribute='status') | list | tojson }};
+const stData   = {{ status_dist | map(attribute='count') | list | tojson }};
+const stColors = { pending:'#6c757d', running:'#ffc107', completed:'#198754', failed:'#dc3545', cancelled:'#0d6efd' };
+const stBg = stLabels.map(s => stColors[s] || '#6c757d');
+
+new Chart(document.getElementById('statusChart'), {
+  type: 'pie',
+  data: { labels: stLabels.map(s => s.charAt(0).toUpperCase()+s.slice(1)), datasets: [{ data: stData, backgroundColor: stBg }] },
+  options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } } }
+});
+
+if (typeof feather !== 'undefined') feather.replace();
+</script>
+{% endblock %}

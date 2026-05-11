@@ -447,42 +447,74 @@ class CrackPiUnifiedClient:
             self.stop_current_job = False
     
     def handle_terminal_command(self, command_data: Dict):
-        """Handle terminal command from server"""
+        """Handle terminal command — execute and POST response to /terminal/api/response"""
         session_id = command_data.get('session_id', 'default')
+        command_id = command_data.get('command_id', '')
         command = command_data.get('command', '')
-        
-        logger.info(f"Executing terminal command: {command}")
-        
+
+        logger.info(f"Executing terminal command [{command_id}]: {command}")
+
         try:
-            # Execute command
             result = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=30
+                command, shell=True, capture_output=True, text=True, timeout=30
             )
-            
-            # Send result back to server
             response_data = {
-                'client_id': self.client_id,
+                'command_id': command_id,
                 'session_id': session_id,
-                'command': command,
                 'stdout': result.stdout,
                 'stderr': result.stderr,
                 'return_code': result.returncode,
                 'timestamp': datetime.utcnow().isoformat()
             }
-            
-            self.session.post(
-                f"{self.server_url}/api/clients/terminal-response",
-                json=response_data
-            )
-            
         except subprocess.TimeoutExpired:
-            logger.error(f"Terminal command timed out: {command}")
+            response_data = {
+                'command_id': command_id,
+                'session_id': session_id,
+                'stdout': '',
+                'stderr': 'Command timed out (30s limit)',
+                'return_code': 124,
+                'timestamp': datetime.utcnow().isoformat()
+            }
         except Exception as e:
-            logger.error(f"Terminal command error: {e}")
+            response_data = {
+                'command_id': command_id,
+                'session_id': session_id,
+                'stdout': '',
+                'stderr': str(e),
+                'return_code': 1,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+
+        try:
+            self.session.post(
+                f"{self.server_url}/terminal/api/response",
+                json=response_data,
+                timeout=5
+            )
+        except Exception as e:
+            logger.error(f"Failed to send terminal response: {e}")
+
+    def _terminal_polling_loop(self):
+        """Background thread: poll server for pending terminal commands"""
+        logger.info("Terminal polling thread started")
+        while self.running:
+            if self.connected:
+                try:
+                    resp = self.session.get(
+                        f"{self.server_url}/terminal/api/commands/{self.client_id}",
+                        timeout=5
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        for cmd in data.get('commands', []):
+                            threading.Thread(
+                                target=self.handle_terminal_command,
+                                args=(cmd,),
+                                daemon=True
+                            ).start()
+                except Exception:
+                    pass
+            time.sleep(2)
     
     def handle_system_update(self, command_data: Dict):
         """Handle system update command"""
@@ -641,7 +673,11 @@ class CrackPiUnifiedClient:
         """Start the unified client"""
         logger.info("Starting CrackPi Unified Client...")
         self.running = True
-        
+
+        # Start terminal polling background thread
+        term_thread = threading.Thread(target=self._terminal_polling_loop, daemon=True)
+        term_thread.start()
+
         try:
             self.run_main_loop()
         except Exception as e:

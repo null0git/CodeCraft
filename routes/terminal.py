@@ -147,12 +147,10 @@ def poll_responses(session_id):
     return jsonify({'responses': responses})
 
 @terminal_bp.route('/api/session/<session_id>/close', methods=['POST'])
-@login_required
 def close_session(session_id):
-    """Close terminal session"""
+    """Close terminal session — no login required (called via sendBeacon on page unload)"""
     if session_id in terminal_sessions:
         del terminal_sessions[session_id]
-    
     return jsonify({'status': 'closed'})
 
 @terminal_bp.route('/api/file-browser/<client_id>')

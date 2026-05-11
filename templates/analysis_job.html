@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}Analysis: {{ job.name }} — CrackPi{% endblock %}
+
+{% block head %}
+<style>
+.metric-pill { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 20px; padding: 6px 14px; }
+.entropy-bar { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #dc3545, #ffc107, #198754); }
+.hash-mono { font-family: monospace; font-size: .8rem; word-break: break-all; }
+.estimator-table th { background: var(--bs-primary); color: #fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <a href="{{ url_for('analysis.index') }}" class="text-muted small"><i data-feather="arrow-left"></i> All Analysis</a>
+    <h2 class="mt-1 mb-0"><i data-feather="search"></i> {{ job.name }}</h2>
+    <span class="badge bg-secondary">{{ job.hash_type.name if job.hash_type else 'Unknown' }}</span>
+    {% if job.status == 'completed' %}<span class="badge bg-success ms-1">Completed</span>
+    {% elif job.status == 'running' %}<span class="badge bg-warning ms-1">Running</span>
+    {% else %}<span class="badge bg-secondary ms-1">{{ job.status }}</span>{% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('jobs.download_results', job_id=job.id) }}" class="btn btn-outline-success btn-sm">
+      <i data-feather="download"></i> CSV
+    </a>
+    <a href="{{ url_for('jobs.export_pdf', job_id=job.id) }}" class="btn btn-outline-danger btn-sm">
+      <i data-feather="file-text"></i> PDF
+    </a>
+    <a href="{{ url_for('jobs.view', job_id=job.id) }}" class="btn btn-outline-secondary btn-sm">
+      <i data-feather="eye"></i> Job Details
+    </a>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-4 col-lg-2">
+    <div class="card text-center p-3 border-0 bg-body-tertiary">
+      <div class="fs-3 fw-bold">{{ hashes|length }}</div>
+      <div class="text-muted small">Total Hashes</div>
+    </div>
+  </div>
+  <div class="col-sm-4 col-lg-2">
+    <div class="card text-center p-3 border-0 bg-success bg-opacity-25">
+      <div class="fs-3 fw-bold text-success">{{ cracked|length }}</div>
+      <div class="text-muted small">Cracked</div>
+    </div>
+  </div>
+  <div class="col-sm-4 col-lg-2">
+    <div class="card text-center p-3 border-0 bg-danger bg-opacity-25">
+      <div class="fs-3 fw-bold text-danger">{{ uncracked|length }}</div>
+      <div class="text-muted small">Uncracked</div>
+    </div>
+  </div>
+  <div class="col-sm-4 col-lg-2">
+    <div class="card text-center p-3 border-0 bg-info bg-opacity-25">
+      <div class="fs-3 fw-bold">{{ avg_entropy }}</div>
+      <div class="text-muted small">Avg Entropy</div>
+    </div>
+  </div>
+  <div class="col-sm-4 col-lg-2">
+    <div class="card text-center p-3 border-0 bg-warning bg-opacity-25">
+      <div class="fs-3 fw-bold text-warning">{{ duplicates }}</div>
+      <div class="text-muted small">Duplicates</div>
+    </div>
+  </div>
+  <div class="col-sm-4 col-lg-2">
+    <div class="card text-center p-3 border-0 bg-primary bg-opacity-25">
+      <div class="fs-3 fw-bold">{{ avg_crack_time ~ 's' if avg_crack_time else 'N/A' }}</div>
+      <div class="text-muted small">Avg Crack Time</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Hash Length Distribution -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><h6 class="mb-0"><i data-feather="bar-chart"></i> Hash Length Distribution</h6></div>
+      <div class="card-body">
+        <div style="height:250px"><canvas id="lengthChart"></canvas></div>
+        {% if length_dist %}
+        <div class="mt-2 small text-muted">
+          {% for ln, cnt in length_dist %}
+            <span class="metric-pill me-1">{{ ln }} chars → {{ cnt }}×</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Charset Distribution -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><h6 class="mb-0"><i data-feather="type"></i> Hash Charset Distribution</h6></div>
+      <div class="card-body">
+        <div style="height:250px"><canvas id="charsetChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Cracked password length -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0"><i data-feather="key"></i> Cracked Password Lengths</h6></div>
+      <div class="card-body">
+        {% if pw_lengths %}
+        <div style="height:200px"><canvas id="pwLenChart"></canvas></div>
+        {% else %}
+        <p class="text-muted text-center py-3">No cracked passwords yet</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Cracked password complexity -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0"><i data-feather="shield"></i> Password Complexity</h6></div>
+      <div class="card-body">
+        {% if pw_charsets %}
+        <div style="height:200px"><canvas id="pwCsChart"></canvas></div>
+        {% else %}
+        <p class="text-muted text-center py-3">No cracked passwords yet</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Brute Force Estimator -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between">
+    <h6 class="mb-0"><i data-feather="clock"></i> Brute-Force Time Estimator — {{ estimator.hash_type }}</h6>
+    <div class="d-flex gap-3 small text-muted">
+      {% for hw, spd in estimator.speeds.items() %}
+      <span><strong>{{ hw.replace('_', ' ').title() }}:</strong> {{ spd }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm estimator-table mb-0">
+        <thead>
+          <tr>
+            <th>Charset</th>
+            <th>Length</th>
+            <th>CPU</th>
+            <th>Mid GPU</th>
+            <th>High-End GPU</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cs, lengths in estimator.estimates.items() %}
+          {% for length, times in lengths.items() %}
+          <tr>
+            {% if loop.first %}<td rowspan="{{ lengths|length }}" class="fw-bold align-middle">{{ cs }}</td>{% endif %}
+            <td><code>{{ length }}</code></td>
+            <td>{{ times.cpu }}</td>
+            <td>{{ times.gpu_mid }}</td>
+            <td>{{ times.gpu_high }}</td>
+          </tr>
+          {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Sample cracked passwords -->
+{% if cracked %}
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h6 class="mb-0"><i data-feather="unlock"></i> Cracked Passwords Sample (first 50)</h6>
+    <a href="{{ url_for('jobs.download_results', job_id=job.id) }}" class="btn btn-success btn-sm">
+      <i data-feather="download"></i> Download All
+    </a>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive" style="max-height:400px; overflow-y:auto">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>#</th><th>Username</th><th>Hash</th><th>Password</th><th>Cracked At</th></tr></thead>
+        <tbody>
+          {% for h in cracked[:50] %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ h.username or '—' }}</td>
+            <td class="hash-mono">{{ h.hash_value[:32] }}{% if h.hash_value|length > 32 %}…{% endif %}</td>
+            <td><code class="text-success fw-bold">{{ h.cracked_password }}</code></td>
+            <td class="text-muted small">{{ h.cracked_at.strftime('%H:%M:%S') if h.cracked_at else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const palette = ['#0d6efd','#6610f2','#6f42c1','#d63384','#dc3545','#fd7e14','#ffc107','#198754','#20c997','#0dcaf0'];
+
+// Length distribution
+new Chart(document.getElementById('lengthChart'), {
+  type: 'bar',
+  data: {
+    labels: {{ length_dist | map(attribute=0) | list | tojson }},
+    datasets: [{ label: 'Hashes', data: {{ length_dist | map(attribute=1) | list | tojson }},
+      backgroundColor: '#0d6efd88', borderColor: '#0d6efd', borderWidth: 1, borderRadius: 4 }]
+  },
+  options: { responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+});
+
+// Charset distribution
+new Chart(document.getElementById('charsetChart'), {
+  type: 'doughnut',
+  data: {
+    labels: {{ charset_dist | map(attribute=0) | list | tojson }},
+    datasets: [{ data: {{ charset_dist | map(attribute=1) | list | tojson }},
+      backgroundColor: palette, borderWidth: 2 }]
+  },
+  options: { responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } } }
+});
+
+{% if pw_lengths %}
+new Chart(document.getElementById('pwLenChart'), {
+  type: 'bar',
+  data: {
+    labels: {{ pw_lengths | map(attribute=0) | list | tojson }},
+    datasets: [{ label: 'Passwords', data: {{ pw_lengths | map(attribute=1) | list | tojson }},
+      backgroundColor: '#19875488', borderColor: '#198754', borderWidth: 1, borderRadius: 4 }]
+  },
+  options: { responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+});
+{% endif %}
+
+{% if pw_charsets %}
+new Chart(document.getElementById('pwCsChart'), {
+  type: 'pie',
+  data: {
+    labels: {{ pw_charsets | map(attribute=0) | list | tojson }},
+    datasets: [{ data: {{ pw_charsets | map(attribute=1) | list | tojson }},
+      backgroundColor: palette }]
+  },
+  options: { responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } } }
+});
+{% endif %}
+
+if (typeof feather !== 'undefined') feather.replace();
+</script>
+{% endblock %}

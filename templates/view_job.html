@@ -12,7 +12,7 @@
                     Created {{ job.created_at.strftime('%Y-%m-%d %H:%M') }} by {{ job.user.username }}
                 </p>
             </div>
-            <div class="btn-group">
+            <div class="d-flex gap-2 flex-wrap">
                 <a href="{{ url_for('jobs.index') }}" class="btn btn-secondary">
                     <i data-feather="arrow-left"></i> Back
                 </a>
@@ -21,11 +21,17 @@
                     <i data-feather="stop-circle"></i> Cancel
                 </button>
                 {% endif %}
-                {% if job.status == 'completed' and job.cracked_hashes > 0 %}
+                {% if job.cracked_hashes > 0 %}
                 <a href="{{ url_for('jobs.download_results', job_id=job.id) }}" class="btn btn-success">
-                    <i data-feather="download"></i> Download Results
+                    <i data-feather="download"></i> CSV
+                </a>
+                <a href="{{ url_for('jobs.export_pdf', job_id=job.id) }}" class="btn btn-danger">
+                    <i data-feather="file-text"></i> PDF Report
                 </a>
                 {% endif %}
+                <a href="{{ url_for('analysis.job_analysis', job_id=job.id) }}" class="btn btn-info">
+                    <i data-feather="bar-chart-2"></i> Analysis
+                </a>
             </div>
         </div>
     </div>
@@ -334,69 +340,40 @@ function cancelJob(jobId) {
     }
 }
 
-// WebSocket event handlers for real-time updates
-socket.on('job_progress_update', function(data) {
-    if (data.job_id === jobId) {
-        // Update progress bar
-        const progressBar = document.getElementById('jobProgress');
-        progressBar.style.width = data.progress + '%';
-        progressBar.textContent = data.progress.toFixed(1) + '%';
-        
-        // Update estimated time
-        const estimatedTimeElement = document.getElementById('estimatedTime');
-        if (estimatedTimeElement && data.estimated_time) {
-            const minutes = Math.floor(data.estimated_time / 60);
-            const seconds = data.estimated_time % 60;
-            estimatedTimeElement.textContent = `ETA: ${minutes}m ${seconds}s`;
-        }
-    }
-});
+// Poll for live progress updates when job is running
+const isRunning = {{ 'true' if job.status == 'running' else 'false' }};
 
-socket.on('password_cracked', function(data) {
-    if (data.job_id === jobId) {
-        // Add new cracked password to the table
-        const table = document.getElementById('crackedHashesTable');
-        if (table) {
-            const newRow = document.createElement('tr');
-            newRow.innerHTML = `
-                <td>-</td>
-                <td><code class="text-muted">${data.hash_value.substring(0, 20)}...</code></td>
-                <td><strong class="text-success">${data.password}</strong></td>
-                <td>${new Date(data.cracked_at).toLocaleTimeString()}</td>
-                <td>${data.client_id}</td>
-            `;
-            table.insertBefore(newRow, table.firstChild);
-        } else {
-            // Reload page if table doesn't exist (first crack)
-            location.reload();
-        }
-    }
-});
+function refreshProgress() {
+    fetch(`/api/job/${jobId}/progress`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.job) return;
+            const bar = document.getElementById('jobProgress');
+            if (bar) {
+                bar.style.width = data.job.progress_percent + '%';
+                bar.textContent = data.job.progress_percent.toFixed(1) + '%';
+            }
+            // Reload page when job transitions out of running
+            if (data.job.status !== 'running') {
+                setTimeout(() => location.reload(), 1500);
+            }
+        })
+        .catch(() => {});
+}
 
-socket.on('job_failed', function(data) {
-    if (data.job_id === jobId) {
-        location.reload();
-    }
-});
+if (isRunning) {
+    setInterval(refreshProgress, 8000);
+}
 
-// Refresh job details every 30 seconds
-setInterval(() => {
-    if ({{ 1 if job.status == 'running' else 0 }}) {
-        fetch(`/api/job/${jobId}/progress`)
-            .then(response => response.json())
-            .then(data => {
-                // Update progress
-                const progressBar = document.getElementById('jobProgress');
-                if (progressBar && data.job) {
-                    progressBar.style.width = data.job.progress_percent + '%';
-                    progressBar.textContent = data.job.progress_percent.toFixed(1) + '%';
-                }
-            })
-            .catch(error => console.error('Error fetching job progress:', error));
+function cancelJob(jobId) {
+    if (confirm('Are you sure you want to cancel this job?')) {
+        fetch(`/jobs/cancel/${jobId}`, { method: 'POST', headers: {'Content-Type':'application/json'} })
+            .then(r => r.json())
+            .then(d => { if (d.success) location.reload(); else alert('Error: ' + d.error); })
+            .catch(e => alert('Error: ' + e));
     }
-}, 30000);
+}
 
-// Initialize Feather icons
-feather.replace();
+if (typeof feather !== 'undefined') feather.replace();
 </script>
 {% endblock %}

@@ -3,165 +3,304 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}CrackPi - Distributed Password Cracking{% endblock %}</title>
-    
+    <title>{% block title %}CrackPi — Distributed Password Cracking{% endblock %}</title>
+
     <!-- Bootstrap CSS -->
     <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
-    
+
     <!-- Feather Icons -->
-    <script src="https://unpkg.com/feather-icons"></script>
-    
+    <script src="https://unpkg.com/feather-icons/dist/feather.min.js"></script>
+
     <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- Socket.IO (disabled - using HTTP polling instead) -->
-    <!-- <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script> -->
-    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Shepherd.js tour library -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@13.0.0/dist/css/shepherd.css">
+    <script src="https://cdn.jsdelivr.net/npm/shepherd.js@13.0.0/dist/js/shepherd.min.js"></script>
+
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
-    
+
     {% block head %}{% endblock %}
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('dashboard.index') }}">
-                <i data-feather="cpu"></i>
-                CrackPi
-            </a>
-            
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard.index') }}">
-                            <i data-feather="home"></i>
-                            Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('hash_input.index') }}">
-                            <i data-feather="hash"></i>
-                            Hash Input
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('progress.index') }}">
-                            <i data-feather="activity"></i>
-                            Progress Monitor
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('clients.index') }}">
-                            <i data-feather="monitor"></i>
-                            Clients
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('jobs.index') }}">
-                            <i data-feather="layers"></i>
-                            Jobs
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('terminal.terminal_dashboard') }}">
-                            <i data-feather="terminal"></i>
-                            Terminal
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('settings.index') }}">
-                            <i data-feather="settings"></i>
-                            Settings
-                        </a>
-                    </li>
-                </ul>
-                
-                <ul class="navbar-nav">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i data-feather="user"></i>
-                            {{ current_user.username }}
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Profile</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item">
-                        <button class="btn btn-outline-secondary btn-sm" id="themeToggle" title="Toggle theme">
-                            <i data-feather="sun" id="themeIcon"></i>
-                        </button>
-                    </li>
-                </ul>
-            </div>
+<nav class="navbar navbar-expand-lg" id="mainNav">
+    <div class="container-fluid">
+        <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('dashboard.index') }}" id="tour-brand">
+            <i data-feather="cpu"></i>
+            <span class="fw-bold">CrackPi</span>
+        </a>
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and request.endpoint.startswith('dashboard') %}active{% endif %}"
+                       href="{{ url_for('dashboard.index') }}" id="tour-dashboard">
+                        <i data-feather="home"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and request.endpoint.startswith('hash_input') %}active{% endif %}"
+                       href="{{ url_for('hash_input.index') }}" id="tour-hash-input">
+                        <i data-feather="hash"></i> Hash Input
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and request.endpoint.startswith('jobs') %}active{% endif %}"
+                       href="{{ url_for('jobs.index') }}" id="tour-jobs">
+                        <i data-feather="layers"></i> Jobs
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and request.endpoint.startswith('progress') %}active{% endif %}"
+                       href="{{ url_for('progress.index') }}">
+                        <i data-feather="activity"></i> Monitor
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and request.endpoint.startswith('clients') %}active{% endif %}"
+                       href="{{ url_for('clients.index') }}" id="tour-clients">
+                        <i data-feather="monitor"></i> Clients
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and request.endpoint.startswith('terminal') %}active{% endif %}"
+                       href="{{ url_for('terminal.terminal_dashboard') }}" id="tour-terminal">
+                        <i data-feather="terminal"></i> Terminal
+                    </a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle {% if request.endpoint and (request.endpoint.startswith('analysis') or request.endpoint.startswith('wordlists')) %}active{% endif %}"
+                       href="#" role="button" data-bs-toggle="dropdown" id="tour-tools">
+                        <i data-feather="tool"></i> Tools
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('analysis.index') }}">
+                                <i data-feather="bar-chart-2"></i> Hash Analysis
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('wordlists.index') }}">
+                                <i data-feather="book-open"></i> Wordlists &amp; Rules
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and request.endpoint.startswith('settings') %}active{% endif %}"
+                       href="{{ url_for('settings.index') }}" id="tour-settings">
+                        <i data-feather="settings"></i> Settings
+                    </a>
+                </li>
+            </ul>
+
+            <ul class="navbar-nav align-items-center gap-2">
+                <!-- Theme toggle -->
+                <li class="nav-item">
+                    <button class="btn btn-sm btn-outline-secondary px-2" id="themeToggle" title="Toggle light/dark mode">
+                        <i data-feather="sun" id="themeIcon"></i>
+                    </button>
+                </li>
+                <!-- Tutorial trigger -->
+                <li class="nav-item">
+                    <button class="btn btn-sm btn-outline-info px-2" id="tourBtn" title="Start interactive tutorial">
+                        <i data-feather="help-circle"></i>
+                    </button>
+                </li>
+                <!-- User menu -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i data-feather="user"></i> {{ current_user.username }}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">
+                            <i data-feather="user"></i> Profile
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}">
+                            <i data-feather="log-out"></i> Logout
+                        </a></li>
+                    </ul>
+                </li>
+            </ul>
         </div>
-    </nav>
-    
-    <main class="container-fluid mt-4">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        
-        {% block content %}{% endblock %}
-    </main>
-    
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Theme Toggle Script -->
-    <script>
-        // Theme management
-        const themeToggle = document.getElementById('themeToggle');
-        const themeIcon = document.getElementById('themeIcon');
-        const htmlElement = document.documentElement;
+    </div>
+</nav>
 
-        // Load saved theme or default to dark
-        const savedTheme = localStorage.getItem('theme') || 'dark';
-        setTheme(savedTheme);
+<main class="container-fluid mt-3 pb-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
-        function setTheme(theme) {
-            htmlElement.setAttribute('data-bs-theme', theme);
-            localStorage.setItem('theme', theme);
-            
-            if (themeIcon) {
-                themeIcon.setAttribute('data-feather', theme === 'dark' ? 'sun' : 'moon');
-                feather.replace();
-            }
+    {% block content %}{% endblock %}
+</main>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+// ── Theme Management ─────────────────────────────────────────────────────────
+const themeToggle = document.getElementById('themeToggle');
+const themeIcon   = document.getElementById('themeIcon');
+const htmlEl      = document.documentElement;
+
+function setTheme(theme) {
+    htmlEl.setAttribute('data-bs-theme', theme);
+    localStorage.setItem('crackpi_theme', theme);
+    if (themeIcon) {
+        themeIcon.setAttribute('data-feather', theme === 'dark' ? 'sun' : 'moon');
+        if (typeof feather !== 'undefined') feather.replace();
+    }
+    // Update navbar bg
+    const nav = document.getElementById('mainNav');
+    if (nav) {
+        nav.classList.toggle('navbar-dark', theme === 'dark');
+        nav.classList.toggle('navbar-light', theme !== 'dark');
+    }
+}
+
+const savedTheme = localStorage.getItem('crackpi_theme') || 'dark';
+setTheme(savedTheme);
+
+if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+        const cur = htmlEl.getAttribute('data-bs-theme');
+        setTheme(cur === 'dark' ? 'light' : 'dark');
+    });
+}
+
+// ── Feather Icons ────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof feather !== 'undefined') feather.replace();
+});
+
+// ── Shepherd.js Interactive Tutorial ────────────────────────────────────────
+const tourBtn = document.getElementById('tourBtn');
+if (tourBtn && typeof Shepherd !== 'undefined') {
+    const tour = new Shepherd.Tour({
+        useModalOverlay: true,
+        defaultStepOptions: {
+            classes: 'crackpi-tour-step',
+            scrollTo: { behavior: 'smooth', block: 'center' },
+            cancelIcon: { enabled: true },
+            popperOptions: {
+                modifiers: [{ name: 'offset', options: { offset: [0, 12] } }]
+            },
+            buttons: [
+                { text: 'Back', action() { this.back(); }, classes: 'btn btn-sm btn-outline-secondary' },
+                { text: 'Next →', action() { this.next(); }, classes: 'btn btn-sm btn-primary' }
+            ]
         }
+    });
 
-        if (themeToggle) {
-            themeToggle.addEventListener('click', () => {
-                const currentTheme = htmlElement.getAttribute('data-bs-theme');
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                setTheme(newTheme);
-            });
-        }
+    tour.addStep({
+        id: 'welcome',
+        title: '👋 Welcome to CrackPi!',
+        text: 'This quick tour will walk you through the main features of your distributed password cracking platform.',
+        buttons: [
+            { text: 'Skip Tour', action() { tour.cancel(); }, classes: 'btn btn-sm btn-outline-secondary' },
+            { text: 'Start Tour →', action() { tour.next(); }, classes: 'btn btn-sm btn-primary' }
+        ]
+    });
 
-        // Initialize Feather icons
-        document.addEventListener('DOMContentLoaded', function() {
-            if (typeof feather !== 'undefined') {
-                feather.replace();
-            }
-        });
-    </script>
+    tour.addStep({
+        id: 'dashboard',
+        title: '🏠 Dashboard',
+        text: 'The dashboard gives you a real-time overview of connected clients, running jobs, and recently cracked passwords.',
+        attachTo: { element: '#tour-dashboard', on: 'bottom' },
+        buttons: [
+            { text: 'Back', action() { tour.back(); }, classes: 'btn btn-sm btn-outline-secondary' },
+            { text: 'Next →', action() { tour.next(); }, classes: 'btn btn-sm btn-primary' }
+        ]
+    });
 
-    <!-- Socket.IO initialization (disabled temporarily) -->
-    <script>
-        // const socket = io();
-    </script>
-    
-    {% block scripts %}{% endblock %}
+    tour.addStep({
+        id: 'hash-input',
+        title: '# Hash Input',
+        text: 'Upload your hash file here. CrackPi auto-detects the hash type and you can configure the attack mode (dictionary, brute-force, hybrid).',
+        attachTo: { element: '#tour-hash-input', on: 'bottom' },
+        buttons: [
+            { text: 'Back', action() { tour.back(); }, classes: 'btn btn-sm btn-outline-secondary' },
+            { text: 'Next →', action() { tour.next(); }, classes: 'btn btn-sm btn-primary' }
+        ]
+    });
+
+    tour.addStep({
+        id: 'jobs',
+        title: '⚙️ Jobs',
+        text: 'View and manage all cracking jobs. Each job is distributed across your connected Raspberry Pi clients. Export results to CSV or PDF.',
+        attachTo: { element: '#tour-jobs', on: 'bottom' },
+        buttons: [
+            { text: 'Back', action() { tour.back(); }, classes: 'btn btn-sm btn-outline-secondary' },
+            { text: 'Next →', action() { tour.next(); }, classes: 'btn btn-sm btn-primary' }
+        ]
+    });
+
+    tour.addStep({
+        id: 'clients',
+        title: '🖥️ Clients',
+        text: 'Connect Raspberry Pi clients using the <code>client_server_api.py</code> script. Monitor CPU, RAM, and network metrics in real time.',
+        attachTo: { element: '#tour-clients', on: 'bottom' },
+        buttons: [
+            { text: 'Back', action() { tour.back(); }, classes: 'btn btn-sm btn-outline-secondary' },
+            { text: 'Next →', action() { tour.next(); }, classes: 'btn btn-sm btn-primary' }
+        ]
+    });
+
+    tour.addStep({
+        id: 'terminal',
+        title: '💻 Remote Terminal',
+        text: 'Execute shell commands on any connected client directly from your browser. The terminal uses a secure HTTP polling mechanism.',
+        attachTo: { element: '#tour-terminal', on: 'bottom' },
+        buttons: [
+            { text: 'Back', action() { tour.back(); }, classes: 'btn btn-sm btn-outline-secondary' },
+            { text: 'Next →', action() { tour.next(); }, classes: 'btn btn-sm btn-primary' }
+        ]
+    });
+
+    tour.addStep({
+        id: 'tools',
+        title: '🔧 Tools',
+        text: 'The Tools menu contains Hash Analysis (entropy, crack rate charts, brute-force estimator) and the Wordlist & Rules manager.',
+        attachTo: { element: '#tour-tools', on: 'bottom' },
+        buttons: [
+            { text: 'Back', action() { tour.back(); }, classes: 'btn btn-sm btn-outline-secondary' },
+            { text: 'Next →', action() { tour.next(); }, classes: 'btn btn-sm btn-primary' }
+        ]
+    });
+
+    tour.addStep({
+        id: 'settings',
+        title: '⚙️ Settings',
+        text: 'Configure SMTP email notifications, manage users and hash types, and view system information.',
+        attachTo: { element: '#tour-settings', on: 'bottom' },
+        buttons: [
+            { text: 'Back', action() { tour.back(); }, classes: 'btn btn-sm btn-outline-secondary' },
+            { text: 'Finish!', action() { tour.complete(); localStorage.setItem('crackpi_tour_done', '1'); }, classes: 'btn btn-sm btn-success' }
+        ]
+    });
+
+    tourBtn.addEventListener('click', () => tour.start());
+
+    // Auto-start for first-time users
+    if (!localStorage.getItem('crackpi_tour_done')) {
+        setTimeout(() => tour.start(), 1500);
+    }
+}
+</script>
+
+{% block scripts %}{% endblock %}
 </body>
 </html>

@@ -22,6 +22,8 @@ class Config:
     # Cracking configuration
     WORDLISTS_DIR = '/usr/share/wordlists'
     RULES_DIR = '/usr/share/hashcat/rules'
+    LOCAL_WORDLISTS_DIR = 'uploads/wordlists'
+    LOCAL_RULES_DIR = 'uploads/rules'
     JOHN_PATH = '/usr/bin/john'
     HASHCAT_PATH = '/usr/bin/hashcat'
     
