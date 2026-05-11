@@ -80,7 +80,7 @@ def _send_email(to_addr, subject, html_body, text_body=None, attachment=None, at
                 server.starttls()
             if smtp_user and smtp_pass:
                 server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_from, to_addr, msg.as_string())
+            server.sendmail(smtp_from, to_addr, msg)
 
         logger.info(f"Email sent to {to_addr}: {subject}")
 
