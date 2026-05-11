@@ -23,7 +23,7 @@ command_responses = {}
 @login_required
 def terminal_dashboard():
     """Terminal dashboard showing available clients"""
-    clients = Client.query.filter_by(status='online').all()
+    clients = Client.query.filter(Client.status.in_(['online', 'connected', 'idle', 'working'])).all()
     return render_template('terminal/dashboard.html', clients=clients)
 
 @terminal_bp.route('/client/<client_id>')

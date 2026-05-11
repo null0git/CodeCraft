@@ -112,12 +112,11 @@ def stop_client(client_id):
             job.completed_at = datetime.utcnow()
             
         # Update client status
-        client.status = 'connected'
+        client.status = 'online'
         
         db.session.commit()
         
-        # Send stop command to client (socketio disabled temporarily)
-        # socketio.emit('job_cancelled', {'job_id': job.id if job else None}, room=client_id)
+        # Stop command will be picked up by client on next heartbeat via command queue
         
         flash(f'Client {client.hostname or client.client_id} stopped successfully.', 'success')
         return jsonify({'success': True})
@@ -151,7 +150,7 @@ def remove_client(client_id):
     
     client = Client.query.filter_by(client_id=client_id).first_or_404()
     
-    if client.status in ['connected', 'working']:
+    if client.status in ['online', 'connected', 'idle', 'working']:
         return jsonify({'error': 'Cannot remove connected client'}), 400
     
     # Check if client has running jobs

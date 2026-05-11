@@ -42,29 +42,8 @@ class ClientManager {
     }
     
     setupWebSocketHandlers() {
-        // Handle client registration
-        socket.on('client_update', (data) => {
-            this.updateClientStatus(data);
-        });
-        
-        // Handle client metrics updates
-        socket.on('metrics_update', (data) => {
-            this.updateClientMetrics(data);
-        });
-        
-        // Handle client disconnections
-        socket.on('client_disconnect', (data) => {
-            this.handleClientDisconnect(data);
-        });
-        
-        // Connection status
-        socket.on('connect', () => {
-            console.log('Connected to server');
-        });
-        
-        socket.on('disconnect', () => {
-            console.log('Disconnected from server');
-        });
+        // Uses HTTP polling instead of WebSocket
+        // Full client list refresh happens in startPeriodicUpdates()
     }
     
     updateClientStatus(data) {
@@ -168,9 +147,10 @@ class ClientManager {
                     disconnected: 0
                 };
                 
+                const onlineStatuses = ['online', 'connected', 'idle', 'working'];
                 clients.forEach(client => {
-                    if (client.status === 'connected') counts.connected++;
-                    else if (client.status === 'working') counts.working++;
+                    if (client.status === 'working') counts.working++;
+                    else if (onlineStatuses.includes(client.status)) counts.connected++;
                     else counts.disconnected++;
                 });
                 
@@ -276,13 +256,14 @@ class ClientManager {
         const row = document.createElement('tr');
         row.dataset.clientId = client.client_id;
         
+        const onlineStatuses = ['online', 'connected', 'idle', 'working'];
         let statusBadge = '';
-        if (client.status === 'connected') {
-            statusBadge = '<span class="badge bg-success"><i data-feather="check-circle" width="12" height="12"></i> Connected</span>';
-        } else if (client.status === 'working') {
+        if (client.status === 'working') {
             statusBadge = '<span class="badge bg-warning"><i data-feather="cpu" width="12" height="12"></i> Working</span>';
+        } else if (onlineStatuses.includes(client.status)) {
+            statusBadge = '<span class="badge bg-success"><i data-feather="check-circle" width="12" height="12"></i> Online</span>';
         } else {
-            statusBadge = '<span class="badge bg-danger"><i data-feather="x-circle" width="12" height="12"></i> Disconnected</span>';
+            statusBadge = '<span class="badge bg-danger"><i data-feather="x-circle" width="12" height="12"></i> Offline</span>';
         }
         
         row.innerHTML = `
@@ -363,8 +344,9 @@ class ClientManager {
     }
     
     startPeriodicUpdates() {
+        // Refresh the full client list and counts periodically
         setInterval(() => {
-            this.updateClientCounts();
+            this.refreshClientList();
         }, this.updateInterval);
     }
 }

@@ -138,10 +138,10 @@ def clients_status_api():
         'clients': client_data,
         'summary': {
             'total_clients': len(clients),
-            'connected_clients': len([c for c in clients if c.status == 'connected']),
+            'connected_clients': len([c for c in clients if c.status in ('online', 'connected', 'idle', 'working')]),
             'working_clients': len([c for c in clients if c.status == 'working']),
-            'idle_clients': len([c for c in clients if c.status == 'connected']),
-            'disconnected_clients': len([c for c in clients if c.status == 'disconnected'])
+            'idle_clients': len([c for c in clients if c.status in ('online', 'connected', 'idle')]),
+            'disconnected_clients': len([c for c in clients if c.status in ('offline', 'disconnected')])
         },
         'last_updated': datetime.utcnow().isoformat()
     })

@@ -9,39 +9,89 @@ logger = logging.getLogger(__name__)
 
 def identify_hash_type(hash_value: str) -> str:
     """
-    Identify hash type based on hash characteristics
+    Identify hash type based on hash characteristics (length, charset, prefix).
+    Returns a string matching a key in Config.HASH_TYPES, or 'unknown'.
     """
-    hash_value = hash_value.strip()
-    
-    # Remove common prefixes
-    if hash_value.startswith('$'):
-        if hash_value.startswith('$1$'):
+    h = hash_value.strip()
+    if not h:
+        return 'unknown'
+
+    # ── Prefix-based detection ────────────────────────────────────────────
+    if h.startswith('$'):
+        if h.startswith('$1$'):
             return 'md5crypt'
-        elif hash_value.startswith('$2a$') or hash_value.startswith('$2b$') or hash_value.startswith('$2y$'):
+        if h.startswith(('$2a$', '$2b$', '$2y$', '$2x$')):
             return 'bcrypt'
-        elif hash_value.startswith('$5$'):
+        if h.startswith('$5$'):
             return 'sha256crypt'
-        elif hash_value.startswith('$6$'):
+        if h.startswith('$6$'):
             return 'sha512crypt'
-        elif hash_value.startswith('$7$'):
+        if h.startswith('$7$'):
             return 'scrypt'
-    
-    # Check by length and character set
-    if re.match(r'^[a-fA-F0-9]{32}$', hash_value):
-        return 'md5'
-    elif re.match(r'^[a-fA-F0-9]{40}$', hash_value):
-        return 'sha1'
-    elif re.match(r'^[a-fA-F0-9]{64}$', hash_value):
-        return 'sha256'
-    elif re.match(r'^[a-fA-F0-9]{128}$', hash_value):
-        return 'sha512'
-    elif re.match(r'^[a-fA-F0-9]{32}:[a-fA-F0-9]{32}$', hash_value):
-        return 'ntlm'  # Often stored as LM:NTLM
-    elif re.match(r'^[a-fA-F0-9]{56}$', hash_value):
-        return 'sha224'
-    elif len(hash_value) == 60 and hash_value.startswith('$2'):
+        if h.startswith('$argon2i$'):
+            return 'argon2i'
+        if h.startswith('$argon2d$'):
+            return 'argon2d'
+        if h.startswith('$argon2id$'):
+            return 'argon2id'
+        if h.startswith('$pbkdf2-sha256$'):
+            return 'pbkdf2-sha256'
+        if h.startswith('$pbkdf2-sha512$'):
+            return 'pbkdf2-sha512'
+        if h.startswith('$pbkdf2-sha1$'):
+            return 'pbkdf2-sha1'
+        if re.match(r'^\$[A-Za-z0-9]{13}$', h):
+            return 'descrypt'
+
+    # ── Length + hex charset ──────────────────────────────────────────────
+    hex_pat = re.compile(r'^[a-fA-F0-9]+$')
+    if hex_pat.match(h):
+        length = len(h)
+        if length == 8:
+            return 'crc32'
+        if length == 32:
+            return 'md5'          # also md4, ntlm — md5 is most common
+        if length == 40:
+            return 'sha1'
+        if length == 48:
+            return 'tiger192'     # best-effort
+        if length == 56:
+            return 'sha224'
+        if length == 64:
+            return 'sha256'       # also sha3-256, keccak-256
+        if length == 80:
+            return 'ripemd320'
+        if length == 96:
+            return 'sha384'
+        if length == 128:
+            return 'sha512'       # also sha3-512, blake2b-512, whirlpool
+
+    # ── NTLM/LM combined format  LM:NTLM ────────────────────────────────
+    if re.match(r'^[a-fA-F0-9]{32}:[a-fA-F0-9]{32}$', h):
+        return 'ntlm'
+
+    # ── MySQL 3.23 (*ABCDEF...) ──────────────────────────────────────────
+    if re.match(r'^\*[A-F0-9]{40}$', h):
+        return 'mysql41'
+
+    # ── bcrypt fallback ──────────────────────────────────────────────────
+    if len(h) == 60 and h.startswith('$2'):
         return 'bcrypt'
-    
+
+    # ── Django-style "algorithm$salt$hash" ──────────────────────────────
+    if re.match(r'^(sha1|sha256|pbkdf2_sha256|pbkdf2_sha1)\$', h):
+        if h.startswith('pbkdf2_sha256'):
+            return 'pbkdf2-sha256'
+        if h.startswith('pbkdf2_sha1'):
+            return 'pbkdf2-sha1'
+        if h.startswith('sha256'):
+            return 'django-sha256'
+        return 'django-sha1'
+
+    # ── WPA handshake PMK/PMKID marker ───────────────────────────────────
+    if re.match(r'^[a-fA-F0-9]{32}\*', h):
+        return 'wpa2-pmkid'
+
     return 'unknown'
 
 def detect_hash_types_from_file(file_path: str) -> Dict[str, int]:

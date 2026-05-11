@@ -147,6 +147,21 @@ CrackPi is a distributed password cracking platform designed to run on Raspberry
 - ✅ Advanced progress monitoring with visual indicators
 - ✅ Dark/light theme toggle functionality
 
+## Latest Fixes (May 2026)
+
+### Comprehensive Bug Fixes & Feature Upgrades
+- ✅ **Fixed `socket is not defined` JS error** — Removed broken SocketIO references from `clients.js`; replaced with HTTP polling
+- ✅ **Fixed client status inconsistency** — All status checks across `api.py`, `clients.py`, `progress.py`, `terminal.py` now accept `online/connected/idle/working` uniformly
+- ✅ **Fixed `/api/stats` zero-client bug** — Was only counting `status='connected'`; now counts all online statuses
+- ✅ **Added real job dispatch via heartbeat** — Server assigns pending jobs to idle clients in heartbeat response; client processes `start_job` commands automatically
+- ✅ **Added missing REST endpoints** — `POST /api/jobs/<id>/status`, `POST /api/jobs/<id>/progress`, `POST /api/jobs/<id>/password-found`, `GET /api/clients/<id>/jobs`
+- ✅ **Added client auto-timeout** — `POST /api/clients/timeout_check` marks stale clients offline and fails orphaned jobs
+- ✅ **Improved client reconnection** — Indefinite exponential backoff (2^n up to 60s), no hard limit on retries
+- ✅ **Rewrote client cracking engine** — Uses Python hashlib (always available); handles hashes list from server, reports cracks back individually via `password-found` endpoint
+- ✅ **Fixed command routing mismatch** — Client now reads `command.get('command')` matching server's `{'command': 'start_job', ...}` format
+- ✅ **Expanded hash algorithms to 49 types** — Added SHA-3 (224/256/384/512), Keccak, BLAKE2b, Argon2 (i/d/id), PBKDF2-SHA512, NTLMv2, MSCache2, MySQL, MSSQL, Oracle, WPA/WPA2-PMKID, macOS, Django, RIPEMD-160, Whirlpool, CRC32, DES-crypt and more
+- ✅ **Improved hash auto-detection** — Recognizes Argon2, PBKDF2 prefixes, Django-style hashes, MySQL `*HASH` format, NTLM `LM:NTLM` pairs
+
 ## Changelog
 - October 8, 2025: **Critical Communication Fix** - Replaced SocketIO with HTTP REST API for reliable client-server communication
 - October 8, 2025: Updated setup scripts to auto-generate service files with detected paths (no manual configuration needed)

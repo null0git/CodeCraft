@@ -300,98 +300,148 @@ class CrackPiUnifiedClient:
             return False
     
     def handle_server_commands(self, response_data: Dict):
-        """Handle commands from server"""
+        """Handle commands received from server in heartbeat response"""
         commands = response_data.get('commands', [])
-        
+
         for command in commands:
-            command_type = command.get('type')
-            
+            # Server sends {'command': 'start_job', ...} as the top-level keys
+            command_type = command.get('command') or command.get('type')
+
             if command_type == 'start_job':
-                self.handle_job_assignment(command.get('job_data'))
+                # The whole command dict IS the job descriptor
+                self.handle_job_assignment(command)
             elif command_type == 'stop_job':
                 self.stop_current_job_execution()
             elif command_type == 'terminal_command':
                 self.handle_terminal_command(command)
             elif command_type == 'system_update':
                 self.handle_system_update(command)
-    
+            else:
+                logger.debug(f"Unknown command type: {command_type}")
+
     def handle_job_assignment(self, job_data: Dict):
-        """Handle new job assignment"""
+        """Handle new job assignment — job_data is the full command dict from server"""
         if self.current_job:
-            logger.warning("Received new job while already working")
+            logger.warning("Received new job while already working, ignoring")
             return
-        
-        logger.info(f"Received job assignment: {job_data.get('job_id')}")
+
+        job_id = job_data.get('job_id')
+        logger.info(f"Received job assignment: job_id={job_id} name={job_data.get('job_name')}")
         self.current_job = job_data
         self.stop_current_job = False
-        
-        # Start job in separate thread
+
         self.job_thread = threading.Thread(
             target=self.execute_cracking_job,
             args=(job_data,),
             daemon=True
         )
         self.job_thread.start()
-    
+
     def execute_cracking_job(self, job_data: Dict):
-        """Execute password cracking job"""
+        """Execute password cracking job using Python hashlib (always available)"""
         job_id = job_data.get('job_id', 'unknown')
-        
+        hash_type = job_data.get('hash_type', 'md5').lower()
+        attack_mode = job_data.get('attack_mode', 'bruteforce')
+        hashes = job_data.get('hashes', [])  # [{'id':..,'hash':..,'salt':..,'username':..}]
+        wordlist_path = job_data.get('wordlist_path')
+        mask = job_data.get('mask', '?d?d?d?d?d?d')
+
+        if not hashes:
+            logger.warning(f"Job {job_id} has no hashes, marking complete")
+            self.report_job_status(job_id, 'completed',
+                                   {'message': 'No hashes to crack', 'level': 'warning'})
+            self.current_job = None
+            return
+
+        logger.info(f"Starting job {job_id}: {hash_type}, {len(hashes)} hashes, mode={attack_mode}")
+        self.report_job_status(job_id, 'running', {'message': f'Started cracking {len(hashes)} hashes', 'level': 'info'})
+
+        # Build a lookup dict: normalized_hash → hash_record
+        target_map = {h['hash'].strip().lower(): h for h in hashes}
+        cracked_count = 0
+        attempts = 0
+
+        def try_password(password: str) -> bool:
+            """Try a password against all remaining targets. Returns True to continue."""
+            nonlocal cracked_count, attempts
+            if self.stop_current_job:
+                return False
+            attempts += 1
+
+            # Compute hash
+            try:
+                alg = hash_type.replace('-', '').replace('_', '')
+                if alg in ('md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512',
+                           'sha3224', 'sha3256', 'sha3384', 'sha3512', 'blake2b512'):
+                    alg_map = {
+                        'md5': 'md5', 'sha1': 'sha1', 'sha224': 'sha224',
+                        'sha256': 'sha256', 'sha384': 'sha384', 'sha512': 'sha512',
+                        'sha3224': 'sha3_224', 'sha3256': 'sha3_256',
+                        'sha3384': 'sha3_384', 'sha3512': 'sha3_512',
+                        'blake2b512': 'blake2b',
+                    }
+                    h = hashlib.new(alg_map.get(alg, alg), password.encode()).hexdigest()
+                else:
+                    h = hashlib.md5(password.encode()).hexdigest()
+            except Exception:
+                h = hashlib.md5(password.encode()).hexdigest()
+
+            if h in target_map:
+                rec = target_map.pop(h)
+                cracked_count += 1
+                logger.info(f"CRACKED: {rec['hash'][:16]}... → {password}")
+                self.report_password_found(job_id, rec['hash'], password, attempts)
+                if attempts % 5000 == 0 or not target_map:
+                    self.report_progress(job_id, (cracked_count / len(hashes)) * 100, attempts, password)
+
+            if attempts % 50000 == 0:
+                pct = (cracked_count / len(hashes)) * 100
+                self.report_progress(job_id, pct, attempts, password)
+
+            return bool(target_map)  # Stop when all cracked
+
         try:
-            # Import hash cracker
-            from utils.hash_cracker import HashCracker
-            
-            # Extract job parameters
-            hash_value = job_data.get('hash_value')
-            hash_type = job_data.get('hash_type', 'md5')
-            start_password = job_data.get('start_password')
-            end_password = job_data.get('end_password')
-            charset = job_data.get('charset', 'digits')
-            
-            logger.info(f"Starting job {job_id}: {hash_type} hash")
-            logger.info(f"Range: {start_password} to {end_password}")
-            
-            # Report job started
-            self.report_job_status(job_id, 'started')
-            
-            # Progress callback
-            def progress_callback(progress_percent: float, attempts: int, current_password: str):
-                if self.stop_current_job:
-                    return False
-                
-                if attempts % 1000 == 0:
-                    self.report_progress(job_id, progress_percent, attempts, current_password)
-                
-                return True
-            
-            # Execute cracking
-            result = HashCracker.crack_hash(
-                target_hash=hash_value,
-                hash_type=hash_type,
-                start_password=start_password,
-                end_password=end_password,
-                charset=charset,
-                progress_callback=progress_callback
-            )
-            
-            if result.get('success'):
-                logger.info(f"PASSWORD FOUND: {result['password']}")
-                self.report_password_found(job_id, hash_value, result['password'], result['attempts'])
-                self.report_job_status(job_id, 'completed', {
-                    'password_found': result['password'],
-                    'attempts': result['attempts']
-                })
+            import hashlib as _hashlib_import
+            hashlib = _hashlib_import
+
+            if attack_mode == 'dictionary' and wordlist_path and os.path.exists(wordlist_path):
+                logger.info(f"Dictionary attack using {wordlist_path}")
+                with open(wordlist_path, 'r', encoding='utf-8', errors='ignore') as wf:
+                    for line in wf:
+                        word = line.rstrip('\n')
+                        if not try_password(word):
+                            break
+                        if self.stop_current_job:
+                            break
+            else:
+                # Brute-force: use digits 0-9 up to 8 chars (safe default for demo)
+                logger.info("Brute-force attack (digits 0-9, 1-8 chars)")
+                import itertools
+                import string
+                charset = string.digits
+                found_all = False
+                for length in range(1, 9):
+                    if found_all or self.stop_current_job:
+                        break
+                    for combo in itertools.product(charset, repeat=length):
+                        if self.stop_current_job or not target_map:
+                            found_all = True
+                            break
+                        pw = ''.join(combo)
+                        try_password(pw)
+
+            if self.stop_current_job:
+                self.report_job_status(job_id, 'cancelled', {'message': 'Job cancelled', 'level': 'info'})
             else:
                 self.report_job_status(job_id, 'completed', {
-                    'password_found': None,
-                    'attempts': result.get('attempts', 0),
-                    'message': 'Range completed, password not found'
+                    'message': f'Completed: {cracked_count}/{len(hashes)} hashes cracked in {attempts} attempts',
+                    'level': 'info'
                 })
-                
+
         except Exception as e:
             logger.error(f"Job execution error: {e}")
-            self.report_job_status(job_id, 'failed', {'error': str(e)})
-        
+            self.report_job_status(job_id, 'failed', {'message': str(e), 'level': 'error'})
+
         finally:
             self.current_job = None
             self.stop_current_job = False
@@ -542,34 +592,30 @@ class CrackPiUnifiedClient:
         os.execv(sys.executable, ['python'] + sys.argv)
     
     def run_main_loop(self):
-        """Main client loop"""
+        """Main client loop — retries indefinitely with exponential backoff"""
         while self.running:
             try:
                 if not self.connected:
                     if self.connect_to_server():
                         logger.info("Connected to server")
+                        self.reconnect_attempts = 0
                     else:
                         self.reconnect_attempts += 1
-                        if self.reconnect_attempts >= self.max_reconnect_attempts:
-                            logger.error("Max reconnection attempts reached")
-                            break
-                        
-                        wait_time = min(30, 2 ** min(self.reconnect_attempts, 5))
-                        logger.info(f"Reconnecting in {wait_time} seconds...")
+                        wait_time = min(60, 2 ** min(self.reconnect_attempts, 6))
+                        logger.info(f"Reconnect attempt {self.reconnect_attempts}, "
+                                    f"retrying in {wait_time}s...")
                         time.sleep(wait_time)
                         continue
-                
-                # Send heartbeat
+
+                # Send heartbeat — server will include job commands in response
                 if not self.send_heartbeat():
+                    logger.warning("Heartbeat failed, marking disconnected")
                     self.connected = False
+                    self.reconnect_attempts = 0  # Reset so backoff restarts
                     continue
-                
-                # Check for jobs (if not already working)
-                if not self.current_job:
-                    self.check_for_jobs()
-                
-                time.sleep(5)  # Main loop interval
-                
+
+                time.sleep(5)  # Heartbeat interval
+
             except KeyboardInterrupt:
                 logger.info("Shutdown signal received")
                 break

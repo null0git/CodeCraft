@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app import db
-from models import Client, Job, Hash, JobLog
-from datetime import datetime
+from models import Client, Job, Hash, JobLog, HashType
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -58,32 +58,226 @@ def register_client():
 
 @api_bp.route('/clients/heartbeat', methods=['POST'])
 def client_heartbeat():
-    """Receive heartbeat from client"""
+    """Receive heartbeat from client and dispatch pending jobs"""
     data = request.get_json()
     client_id = data.get('client_id')
-    
+
     client = Client.query.filter_by(client_id=client_id).first()
-    if client:
-        client.status = data.get('status', 'idle')
-        client.last_seen = datetime.utcnow()
-        
-        # Update metrics if provided
-        metrics = data.get('system_metrics', {})
-        if metrics:
-            client.cpu_usage = metrics.get('cpu_usage', 0)
-            client.ram_usage = metrics.get('memory_usage', 0)
-            client.disk_usage = metrics.get('disk_usage', 0)
-            client.network_latency = metrics.get('network_latency', 0)
-        
+    if not client:
+        return jsonify({'error': 'Client not found'}), 404
+
+    # Update status — keep 'working' if client reports it, else 'online'
+    reported_status = data.get('status', 'online')
+    client.status = reported_status if reported_status in ('working', 'online', 'idle') else 'online'
+    client.last_seen = datetime.utcnow()
+
+    # Update metrics if provided
+    metrics = data.get('system_metrics', {})
+    if metrics:
+        client.cpu_usage = metrics.get('cpu_usage', 0)
+        client.ram_usage = metrics.get('memory_usage', 0)
+        client.disk_usage = metrics.get('disk_usage', 0)
+        client.network_latency = metrics.get('network_latency', 0)
+
+    commands = []
+
+    # Dispatch a pending job if client is idle
+    if client.status in ('online', 'idle'):
+        pending_job = Job.query.filter_by(status='pending', client_id=None).order_by(
+            Job.priority.asc(), Job.created_at.asc()
+        ).first()
+
+        if pending_job:
+            pending_job.client_id = client.id
+            pending_job.status = 'running'
+            pending_job.started_at = datetime.utcnow()
+            client.status = 'working'
+
+            # Collect hashes for the job
+            hashes = Hash.query.filter_by(job_id=pending_job.id, is_cracked=False).all()
+            hash_list = [{'id': h.id, 'hash': h.hash_value, 'salt': h.salt, 'username': h.username}
+                         for h in hashes]
+
+            hash_type_rec = HashType.query.get(pending_job.hash_type_id)
+            commands.append({
+                'command': 'start_job',
+                'job_id': pending_job.id,
+                'job_name': pending_job.name,
+                'hash_type': hash_type_rec.name if hash_type_rec else 'unknown',
+                'hashcat_mode': hash_type_rec.hashcat_mode if hash_type_rec else None,
+                'john_format': hash_type_rec.john_format if hash_type_rec else None,
+                'attack_mode': pending_job.attack_mode,
+                'wordlist_path': pending_job.wordlist_path,
+                'rules_path': pending_job.rules_path,
+                'mask': pending_job.mask,
+                'hashes': hash_list
+            })
+
+            log_entry = JobLog()
+            log_entry.job_id = pending_job.id
+            log_entry.client_id = client.id
+            log_entry.level = 'info'
+            log_entry.message = f'Job dispatched to client {client.hostname or client.client_id}'
+            db.session.add(log_entry)
+
+    db.session.commit()
+
+    return jsonify({'status': 'ok', 'commands': commands})
+
+
+@api_bp.route('/clients/timeout_check', methods=['POST'])
+@login_required
+def timeout_check():
+    """Mark clients as offline if they haven't sent a heartbeat recently"""
+    timeout_minutes = int(request.get_json().get('timeout_minutes', 5))
+    cutoff = datetime.utcnow() - timedelta(minutes=timeout_minutes)
+
+    stale = Client.query.filter(
+        Client.last_seen < cutoff,
+        Client.status.in_(('online', 'connected', 'idle', 'working'))
+    ).all()
+
+    timed_out = []
+    for c in stale:
+        # Fail any running jobs for this client
+        running = Job.query.filter_by(client_id=c.id, status='running').all()
+        for job in running:
+            job.status = 'failed'
+            job.completed_at = datetime.utcnow()
+            log_entry = JobLog()
+            log_entry.job_id = job.id
+            log_entry.client_id = c.id
+            log_entry.level = 'error'
+            log_entry.message = f'Client timed out — job marked failed'
+            db.session.add(log_entry)
+        c.status = 'offline'
+        timed_out.append(c.client_id)
+
+    db.session.commit()
+    return jsonify({'timed_out': timed_out, 'count': len(timed_out)})
+
+
+@api_bp.route('/jobs/<int:job_id>/status', methods=['POST'])
+def update_job_status(job_id):
+    """Client reports job status update"""
+    data = request.get_json()
+    job = Job.query.get_or_404(job_id)
+
+    new_status = data.get('status')
+    if new_status in ('completed', 'failed', 'cancelled', 'running'):
+        job.status = new_status
+        if new_status == 'completed':
+            job.completed_at = datetime.utcnow()
+            if job.started_at:
+                job.actual_time = int((job.completed_at - job.started_at).total_seconds())
+            if job.assigned_client:
+                job.assigned_client.status = 'online'
+        elif new_status == 'failed':
+            job.completed_at = datetime.utcnow()
+            if job.assigned_client:
+                job.assigned_client.status = 'online'
+
+    details = data.get('details', {})
+    if details.get('message'):
+        log_entry = JobLog()
+        log_entry.job_id = job.id
+        log_entry.client_id = job.client_id
+        log_entry.level = details.get('level', 'info')
+        log_entry.message = details['message']
+        db.session.add(log_entry)
+
+    db.session.commit()
+    return jsonify({'status': 'ok'})
+
+
+@api_bp.route('/jobs/<int:job_id>/progress', methods=['POST'])
+def update_job_progress(job_id):
+    """Client reports cracking progress"""
+    data = request.get_json()
+    job = Job.query.get_or_404(job_id)
+
+    progress = data.get('progress_percent')
+    if progress is not None:
+        job.progress_percent = float(progress)
+
+    cracked_count = Hash.query.filter_by(job_id=job_id, is_cracked=True).count()
+    job.cracked_hashes = cracked_count
+    if job.total_hashes and job.total_hashes > 0:
+        job.progress_percent = (cracked_count / job.total_hashes) * 100
+
+    db.session.commit()
+    return jsonify({'status': 'ok'})
+
+
+@api_bp.route('/jobs/<int:job_id>/password-found', methods=['POST'])
+def password_found(job_id):
+    """Client reports a cracked password"""
+    data = request.get_json()
+    job = Job.query.get_or_404(job_id)
+
+    hash_value = data.get('hash_value', '').strip()
+    password = data.get('password', '').strip()
+    client_id_str = data.get('client_id')
+
+    if not hash_value or not password:
+        return jsonify({'error': 'hash_value and password are required'}), 400
+
+    hash_obj = Hash.query.filter_by(job_id=job_id, hash_value=hash_value).first()
+    if hash_obj:
+        hash_obj.is_cracked = True
+        hash_obj.cracked_password = password
+        hash_obj.cracked_at = datetime.utcnow()
+
+        if client_id_str:
+            client = Client.query.filter_by(client_id=client_id_str).first()
+            if client:
+                hash_obj.cracked_by_client_id = client.id
+
+        # Update job stats
+        cracked_count = Hash.query.filter_by(job_id=job_id, is_cracked=True).count()
+        job.cracked_hashes = cracked_count + 1
+        if job.total_hashes and job.total_hashes > 0:
+            job.progress_percent = ((cracked_count + 1) / job.total_hashes) * 100
+
+        log_entry = JobLog()
+        log_entry.job_id = job.id
+        log_entry.level = 'info'
+        log_entry.message = f'Password cracked: {hash_value[:16]}... → {password}'
+        db.session.add(log_entry)
+
         db.session.commit()
-        
-        # Return any commands for the client
-        return jsonify({
-            'status': 'ok',
-            'commands': []  # Commands would be queued here
+        return jsonify({'status': 'ok', 'cracked': True})
+
+    return jsonify({'error': 'Hash not found in job'}), 404
+
+
+@api_bp.route('/clients/<client_id>/jobs', methods=['GET'])
+def get_client_jobs(client_id):
+    """Get pending/assigned jobs for a specific client"""
+    client = Client.query.filter_by(client_id=client_id).first()
+    if not client:
+        return jsonify({'error': 'Client not found'}), 404
+
+    jobs = Job.query.filter_by(client_id=client.id, status='running').all()
+    job_data = []
+    for job in jobs:
+        hashes = Hash.query.filter_by(job_id=job.id, is_cracked=False).all()
+        hash_type_rec = HashType.query.get(job.hash_type_id)
+        job_data.append({
+            'job_id': job.id,
+            'job_name': job.name,
+            'hash_type': hash_type_rec.name if hash_type_rec else 'unknown',
+            'hashcat_mode': hash_type_rec.hashcat_mode if hash_type_rec else None,
+            'john_format': hash_type_rec.john_format if hash_type_rec else None,
+            'attack_mode': job.attack_mode,
+            'wordlist_path': job.wordlist_path,
+            'rules_path': job.rules_path,
+            'mask': job.mask,
+            'hashes': [{'id': h.id, 'hash': h.hash_value, 'salt': h.salt, 'username': h.username}
+                       for h in hashes]
         })
-    
-    return jsonify({'error': 'Client not found'}), 404
+
+    return jsonify({'jobs': job_data})
 
 @api_bp.route('/clients')
 @login_required
@@ -177,6 +371,8 @@ def get_job_progress(job_id):
         } for log in logs]
     })
 
+ONLINE_STATUSES = ('online', 'connected', 'idle', 'working')
+
 @api_bp.route('/stats')
 @login_required
 def get_stats():
@@ -184,7 +380,7 @@ def get_stats():
     try:
         # Client statistics
         total_clients = Client.query.count()
-        connected_clients = Client.query.filter_by(status='connected').count()
+        connected_clients = Client.query.filter(Client.status.in_(ONLINE_STATUSES)).count()
         working_clients = Client.query.filter_by(status='working').count()
         
         # Job statistics
@@ -247,7 +443,7 @@ def get_system_status():
         server_metrics = get_system_metrics()
         
         # Get client metrics summary
-        clients = Client.query.filter_by(status='connected').all()
+        clients = Client.query.filter(Client.status.in_(ONLINE_STATUSES)).all()
         
         total_cpu = 0
         total_ram = 0
