@@ -15,6 +15,27 @@ class Base(DeclarativeBase):
 db = SQLAlchemy(model_class=Base)
 login_manager = LoginManager()
 
+def _run_migrations(app):
+    """
+    Add any columns that exist in models but are missing from the live DB.
+    Safe to run on every startup — uses IF NOT EXISTS so it's idempotent.
+    """
+    migrations = [
+        "ALTER TABLE job ADD COLUMN charset VARCHAR(32)",
+        "ALTER TABLE job ADD COLUMN charset_custom VARCHAR(512)",
+        "ALTER TABLE job ADD COLUMN min_length INTEGER",
+        "ALTER TABLE job ADD COLUMN max_length INTEGER",
+    ]
+    with db.engine.connect() as conn:
+        for sql in migrations:
+            try:
+                conn.execute(db.text(sql))
+                conn.commit()
+                app.logger.info(f"Migration applied: {sql[:60]}")
+            except Exception:
+                pass   # column already exists or other benign error
+
+
 def create_app():
     app = Flask(__name__)
     app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key-change-in-production")
@@ -62,10 +83,11 @@ def create_app():
     app.register_blueprint(analysis_bp)
     app.register_blueprint(wordlists_bp)
     
-    # Create tables
+    # Create tables + run lightweight column migrations
     with app.app_context():
         import models
         db.create_all()
+        _run_migrations(app)
         
         # Create default admin user if none exists
         from models import User

@@ -183,6 +183,62 @@
             </div>
         </div>
 
+        <!-- Distributed Keyspace Workers (brute-force only) -->
+        {% if job.attack_mode == 'bruteforce' and job.charset %}
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i data-feather="cpu" width="18" height="18"></i> Distributed Keyspace Workers</h5>
+                <span class="badge bg-info" id="workerCount">Loading…</span>
+            </div>
+            <div class="card-body p-0">
+                <!-- Keyspace summary bar -->
+                <div class="px-3 pt-3 pb-2 border-bottom">
+                    <div class="row g-3 text-center" id="keyspaceSummary">
+                        <div class="col-4 col-md-2">
+                            <div class="small text-muted">Charset</div>
+                            <div class="fw-bold">{{ job.charset }}</div>
+                        </div>
+                        <div class="col-4 col-md-2">
+                            <div class="small text-muted">Min length</div>
+                            <div class="fw-bold">{{ job.min_length }}</div>
+                        </div>
+                        <div class="col-4 col-md-2">
+                            <div class="small text-muted">Max length</div>
+                            <div class="fw-bold">{{ job.max_length }}</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="small text-muted">Total combinations</div>
+                            <div class="fw-bold" id="totalCombos">—</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="small text-muted">Passwords tried</div>
+                            <div class="fw-bold" id="totalTried">—</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Worker assignment table -->
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0" id="workersTable">
+                        <thead class="table-secondary">
+                            <tr>
+                                <th>Worker</th>
+                                <th>Range start</th>
+                                <th>Range end</th>
+                                <th>Range size</th>
+                                <th>Tried</th>
+                                <th>Progress</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="workersBody">
+                            <tr><td colspan="7" class="text-center text-muted py-3">Loading worker assignments…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Cracked Passwords -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -375,5 +431,78 @@ function cancelJob(jobId) {
 }
 
 if (typeof feather !== 'undefined') feather.replace();
+
+// ── Distributed worker table (brute-force jobs) ───────────────────────────
+const isBruteforce = {{ 'true' if (job.attack_mode == 'bruteforce' and job.charset) else 'false' }};
+
+function fmtBig(n) {
+    if (n === undefined || n === null) return '—';
+    if (n >= 1e12) return (n/1e12).toFixed(2) + ' T';
+    if (n >= 1e9)  return (n/1e9).toFixed(2)  + ' B';
+    if (n >= 1e6)  return (n/1e6).toFixed(2)  + ' M';
+    if (n >= 1e3)  return (n/1e3).toFixed(1)  + ' K';
+    return n.toLocaleString();
+}
+
+function statusBadge(s) {
+    const m = {
+        assigned:  'bg-secondary',
+        running:   'bg-warning text-dark',
+        completed: 'bg-success',
+        failed:    'bg-danger',
+    };
+    return `<span class="badge ${m[s] || 'bg-secondary'}">${s}</span>`;
+}
+
+function loadWorkers() {
+    fetch(`/api/jobs/${jobId}/keyspace`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+            if (!d || !d.distributed) return;
+
+            // Summary stats
+            const total = d.keyspace && d.keyspace.total ? d.keyspace.total : 0;
+            document.getElementById('totalCombos').textContent = fmtBig(total);
+
+            const tried = d.workers.reduce((s, w) => s + (w.passwords_tried || 0), 0);
+            document.getElementById('totalTried').textContent = fmtBig(tried);
+
+            document.getElementById('workerCount').textContent = `${d.workers.length} worker(s)`;
+
+            // Worker rows
+            const tbody = document.getElementById('workersBody');
+            if (!d.workers.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No assignments yet — waiting for workers to connect</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = d.workers.map(w => {
+                const rangeSize = w.end_index - w.start_index + 1;
+                const pct = rangeSize > 0 ? Math.min(100, ((w.passwords_tried || 0) / rangeSize) * 100) : 0;
+                const bar = `<div class="progress" style="height:6px;min-width:80px">
+                    <div class="progress-bar bg-info" style="width:${pct.toFixed(1)}%"></div>
+                </div>
+                <div class="small text-muted">${pct.toFixed(1)}%</div>`;
+                return `<tr>
+                    <td><strong>${w.hostname || w.client_id || '—'}</strong>
+                        <br><code class="small text-muted">${(w.client_id||'').substring(0,8)}</code></td>
+                    <td><code>${fmtBig(w.start_index)}</code></td>
+                    <td><code>${fmtBig(w.end_index)}</code></td>
+                    <td>${fmtBig(w.range_size)}</td>
+                    <td>${fmtBig(w.passwords_tried)}</td>
+                    <td>${bar}</td>
+                    <td>${statusBadge(w.status)}</td>
+                </tr>`;
+            }).join('');
+        })
+        .catch(() => {});
+}
+
+if (isBruteforce) {
+    loadWorkers();
+    if (isRunning) {
+        setInterval(loadWorkers, 6000);
+    }
+}
 </script>
 {% endblock %}

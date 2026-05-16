@@ -131,6 +131,19 @@ def create():
                 job.wordlist_path = wordlist_path
                 job.rules_path = rules_path
                 job.mask = mask
+
+                # Distributed brute-force keyspace fields
+                if attack_mode == 'bruteforce':
+                    job.charset = request.form.get('charset') or 'digits'
+                    job.charset_custom = request.form.get('charset_custom', '')
+                    try:
+                        job.min_length = max(1, int(request.form.get('min_length', 1)))
+                        job.max_length = max(1, int(request.form.get('max_length', 8)))
+                        if job.max_length < job.min_length:
+                            job.max_length = job.min_length
+                    except (ValueError, TypeError):
+                        job.min_length = 1
+                        job.max_length = 8
                 
                 db.session.add(job)
                 db.session.flush()  # Get the job ID

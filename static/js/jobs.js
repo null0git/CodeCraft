@@ -6,7 +6,6 @@ class JobManager {
         this.selectedJob = null;
         
         this.setupEventHandlers();
-        this.setupWebSocketHandlers();
         this.startPeriodicUpdates();
     }
     
@@ -38,32 +37,6 @@ class JobManager {
         }
     }
     
-    setupWebSocketHandlers() {
-        // Handle job progress updates
-        socket.on('job_progress_update', (data) => {
-            this.updateJobProgress(data);
-        });
-        
-        // Handle password cracked notifications
-        socket.on('password_cracked', (data) => {
-            this.handlePasswordCracked(data);
-        });
-        
-        // Handle job completion
-        socket.on('job_completed', (data) => {
-            this.handleJobCompleted(data);
-        });
-        
-        // Handle job failures
-        socket.on('job_failed', (data) => {
-            this.handleJobFailed(data);
-        });
-        
-        // Handle job assignments
-        socket.on('job_assigned', (data) => {
-            this.handleJobAssigned(data);
-        });
-    }
     
     updateJobProgress(data) {
         const jobRow = document.querySelector(`tr[data-job-id="${data.job_id}"]`);

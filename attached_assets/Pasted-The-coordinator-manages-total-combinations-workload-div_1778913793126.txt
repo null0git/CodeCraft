@@ -1,0 +1,151 @@
+The coordinator manages:
+
+total combinations,
+workload division,
+worker assignments.
+
+Workers only process the part assigned to them.
+
+Step 1 — Build the Keyspace
+
+The coordinator first determines:
+
+the character set,
+password length rules.
+
+The character set can contain:
+
+numbers,
+lowercase letters,
+uppercase letters,
+symbols,
+Unicode,
+or any custom characters.
+
+Every possible password combination belongs to the total keyspace.
+
+Step 2 — Represent Passwords as Numeric Indexes
+
+Instead of storing every possible password, the system represents each password as a numeric position.
+
+Conceptually:
+
+0 → first password
+1 → second password
+2 → third password
+...
+
+The system converts:
+
+index → password,
+password → index.
+
+This allows efficient range assignment.
+
+Step 3 — Calculate Total Combination Count
+
+The coordinator calculates the total number of possible passwords based on:
+
+charset size,
+minimum length,
+maximum length.
+
+For variable-length passwords, the total keyspace is the sum of all valid lengths.
+
+Example formula concept:
+
+∑
+i=min
+max
+	​
+
+c
+i
+
+Where:
+
+c = charset size,
+i = password length.
+Step 4 — Divide Work Between Workers
+
+The coordinator checks:
+
+total combinations,
+number of connected workers.
+
+It then divides the total search space into ranges.
+
+Each worker receives:
+
+a start index,
+an end index.
+
+Example conceptually:
+
+Worker 1 → Range A
+Worker 2 → Range B
+Worker 3 → Range C
+
+No ranges overlap.
+
+This ensures:
+
+no duplicate cracking attempts,
+balanced processing,
+efficient scaling.
+Step 5 — Handle Uneven Division
+
+If the total combinations are not evenly divisible by the number of workers:
+
+The coordinator:
+
+calculates the base range size,
+calculates the remainder,
+distributes the remaining combinations among some workers.
+
+This keeps workload distribution nearly equal.
+
+Step 6 — Worker Processing
+
+Each worker:
+
+starts at its assigned start index,
+converts indexes into password candidates,
+tests candidates,
+increments indexes sequentially,
+stops when reaching its end index.
+
+Workers never process outside their assigned range.
+
+Step 7 — Parallel Execution
+
+All workers process their ranges simultaneously.
+
+Because each worker operates independently:
+
+performance scales with additional workers,
+total cracking time decreases.
+
+The workers do not need to communicate with each other directly.
+
+Only the coordinator tracks:
+
+assignments,
+progress,
+completion,
+successful matches.
+Step 8 — Success Detection
+
+If a worker finds the correct password:
+
+it reports the result to the coordinator,
+the coordinator immediately stops all other workers,
+the cracking session ends.
+Step 9 — Worker Failure Handling
+
+If a worker disconnects or crashes:
+
+its unfinished range is returned to the coordinator,
+another worker can continue the remaining work.
+
+This prevents losing progress.
